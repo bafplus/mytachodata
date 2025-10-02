@@ -30,8 +30,8 @@ RUN go build -o dddparser
 # ------------------------
 FROM php:8.2-apache
 
-# Enable PHP mysqli
-RUN docker-php-ext-install mysqli
+# Enable PHP mysqli and PDO MySQL/MariaDB
+RUN docker-php-ext-install mysqli pdo pdo_mysql
 
 # Install MariaDB server, supervisord, wget, unzip
 RUN apt-get update && apt-get install -y \
