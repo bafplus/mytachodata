@@ -56,6 +56,15 @@ RUN wget https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.zi
     unzip /tmp/pma.zip -d /var/www/html/phpmyadmin && \
     rm /tmp/pma.zip
 
+ # Configure Apache for phpMyAdmin
+RUN echo '<Directory "/var/www/html/phpmyadmin">\n\
+    Options Indexes FollowSymLinks\n\
+    AllowOverride All\n\
+    Require all granted\n\
+</Directory>' > /etc/apache2/conf-available/phpmyadmin.conf && \
+    a2enconf phpmyadmin && \
+    service apache2 reload
+
 # Fix permissions for phpMyAdmin
 RUN chown -R www-data:www-data /var/www/html/phpmyadmin
 
