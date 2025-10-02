@@ -1,82 +1,67 @@
+# ------------------------
+# Stage 1: Build dddparser
+# ------------------------
+FROM golang:1.21-bullseye AS builder
+
+WORKDIR /build
+
+# Install Python & dependencies for PKCS scripts
+RUN apt-get update && apt-get install -y python3 python3-pip git unzip && \
+    pip3 install --user lxml requests && rm -rf /var/lib/apt/lists/*
+
+# Clone tachoparser repo
+RUN git clone https://github.com/traconiq/tachoparser.git tachoparser
+
+WORKDIR /build/tachoparser/scripts
+
+# Create certificate folders
+RUN mkdir -p ../internal/pkg/certificates/pks1 ../internal/pkg/certificates/pks2
+
+# Download PKS1 + PKS2 certificates
+RUN cd pks1 && python3 dl_all_pks1.py && cd .. && \
+    cd pks2 && python3 dl_all_pks2.py && cd ..
+
+# Build dddparser binary
+WORKDIR /build/tachoparser/cmd/dddparser
+RUN go build -o dddparser
+
+# ------------------------
+# Stage 2: PHP + Apache + MySQL + phpMyAdmin
+# ------------------------
 FROM php:8.2-apache
 
-# ----------------
-# System utilities + PHP extensions
-# ----------------
+# Enable PHP mysqli
+RUN docker-php-ext-install mysqli
+
+# Install MySQL server, supervisord, wget, unzip
 RUN apt-get update && apt-get install -y \
-        default-mysql-server \
-        wget unzip git supervisor python3 python3-pip \
-        python3-lxml python3-requests \
-    && docker-php-ext-install mysqli pdo pdo_mysql \
+        mysql-server \
+        supervisor \
+        wget \
+        unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# ----------------
-# Install Go
-# ----------------
-RUN wget https://golang.org/dl/go1.21.0.linux-amd64.tar.gz \
-    && tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz \
-    && rm go1.21.0.linux-amd64.tar.gz
-ENV PATH="/usr/local/go/bin:${PATH}"
+# Copy dddparser binary from builder
+COPY --from=builder /build/tachoparser/cmd/dddparser/dddparser /usr/local/bin/dddparser
 
-# ----------------
-# Clone tachoparser
-# ----------------
-RUN git clone https://github.com/traconiq/tachoparser.git /tachoparser
+# Create uploads folder
+RUN mkdir -p /var/www/html/uploads && chown www-data:www-data /var/www/html/uploads
 
-# ----------------
-# Create certificate folders
-# ----------------
-RUN mkdir -p /tachoparser/internal/pkg/certificates/pks1 \
-    && mkdir -p /tachoparser/internal/pkg/certificates/pks2 \
-    && mkdir -p /tachoparser/pks1 \
-    && mkdir -p /tachoparser/pks2
-
-# ----------------
-# Download PKS1 + PKS2 scripts and run them
-# ----------------
-# PKS1
-RUN cd /tachoparser/pks1 \
-    && wget https://github.com/traconiq/tachoparser/raw/main/scripts/pks1/dl_all_pks1.py \
-    && python3 dl_all_pks1.py
-
-# PKS2
-RUN cd /tachoparser/pks2 \
-    && wget https://github.com/traconiq/tachoparser/raw/main/scripts/pks2/dl_all_pks2.py \
-    && python3 dl_all_pks2.py
-
-# ----------------
-# Build tachoparser binary
-# ----------------
-RUN cd /tachoparser/cmd/dddparser \
-    && go build -o dddparser ./ \
-    && mv dddparser /usr/local/bin/dddparser
-
-# ----------------
-# Copy PHP source code
-# ----------------
+# Copy PHP webapp
 COPY src/ /var/www/html/
 
-# ----------------
-# Uploads folder
-# ----------------
-RUN mkdir -p /var/www/html/uploads && chmod 777 /var/www/html/uploads
-
-# ----------------
-# Install phpMyAdmin (dev convenience)
-# ----------------
-RUN wget https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.zip \
-    && unzip phpMyAdmin-latest-all-languages.zip -d /var/www/html/ \
+# Install phpMyAdmin (for dev convenience)
+RUN wget https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.zip -O /tmp/pma.zip \
+    && unzip /tmp/pma.zip -d /var/www/html/ \
     && mv /var/www/html/phpMyAdmin-*-all-languages /var/www/html/phpmyadmin \
-    && rm phpMyAdmin-latest-all-languages.zip
+    && rm /tmp/pma.zip
 
-# ----------------
-# Supervisor to run Apache + MySQL
-# ----------------
+# Supervisord config
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# ----------------
-# Expose Apache + MySQL ports
-# ----------------
+# Expose ports
 EXPOSE 80 3306
 
+# Start supervisord (runs Apache + MySQL)
 CMD ["/usr/bin/supervisord"]
+
