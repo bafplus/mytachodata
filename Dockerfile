@@ -9,12 +9,14 @@ RUN docker-php-ext-install mysqli pdo pdo_mysql \
     && rm -rf /var/lib/apt/lists/*
 
 # ----------------
-# Go for tachoparser
+# Install Go
 # ----------------
 RUN wget https://golang.org/dl/go1.21.0.linux-amd64.tar.gz \
     && tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz \
-    && rm go1.21.0.linux-amd64.tar.gz \
-    && export PATH=$PATH:/usr/local/go/bin
+    && rm go1.21.0.linux-amd64.tar.gz
+
+# Add Go to PATH for all future RUN commands
+ENV PATH="/usr/local/go/bin:${PATH}"
 
 # ----------------
 # Build tachoparser
@@ -47,7 +49,7 @@ COPY src/ /var/www/html/
 RUN mkdir -p /var/www/html/uploads && chmod 777 /var/www/html/uploads
 
 # ----------------
-# Install phpMyAdmin (for dev convenience)
+# Install phpMyAdmin (dev convenience)
 # ----------------
 RUN wget https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.zip \
     && unzip phpMyAdmin-latest-all-languages.zip -d /var/www/html/ \
@@ -55,9 +57,11 @@ RUN wget https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.zi
     && rm phpMyAdmin-latest-all-languages.zip
 
 # ----------------
-# Supervisord to run Apache + MySQL
+# Supervisor to run Apache + MySQL
 # ----------------
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
+# Expose Apache + MySQL ports
 EXPOSE 80 3306
+
 CMD ["/usr/bin/supervisord"]
