@@ -43,6 +43,14 @@ RUN mkdir -p /var/www/html/uploads && chown www-data:www-data /var/www/html/uplo
 # Copy PHP webapp
 COPY src/ /var/www/html/
 
+# ------------------------
+# Default ENV for DB connection
+# ------------------------
+ENV DB_HOST=127.0.0.1 \
+    DB_NAME=mytacho \
+    DB_USER=mytacho_user \
+    DB_PASS=mytacho_pass
+
 # Download and install phpMyAdmin
 RUN wget https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.zip -O /tmp/pma.zip && \
     unzip /tmp/pma.zip -d /var/www/html/phpmyadmin && \
