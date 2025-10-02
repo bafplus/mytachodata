@@ -1,46 +1,27 @@
-# ------------------------
-# Stage 1: Build dddparser
-# ------------------------
-FROM golang:1.21-bullseye AS builder
-
-WORKDIR /build
-
-# Install Python & dependencies for PKCS scripts
-RUN apt-get update && apt-get install -y python3 python3-pip git unzip && \
-    pip3 install lxml requests && rm -rf /var/lib/apt/lists/*
-
-# Clone tachoparser repo
-RUN git clone https://github.com/traconiq/tachoparser.git tachoparser
-
-WORKDIR /build/tachoparser/scripts
-
-# Download certificates
-RUN cd pks1 && python3 dl_all_pks1.py && cd .. && \
-    cd pks2 && python3 dl_all_pks2.py && cd ..
-
-# Build dddparser
-WORKDIR /build/tachoparser/cmd/dddparser
-RUN go build -o dddparser
-
-# ------------------------
-# Stage 2: PHP + Apache
-# ------------------------
 FROM php:8.2-apache
 
-# Enable PHP mysqli
-RUN docker-php-ext-install mysqli
+# PHP extensions
+RUN docker-php-ext-install mysqli pdo pdo_mysql
 
-# Copy dddparser binary from builder
-COPY --from=builder /build/tachoparser/cmd/dddparser/dddparser /usr/local/bin/dddparser
+# Install utilities
+RUN apt-get update && apt-get install -y \
+    git wget unzip supervisor curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Create uploads folder with proper permissions
-RUN mkdir -p /var/www/html/uploads && chown www-data:www-data /var/www/html/uploads
+# Install Go (for tachoparser build)
+RUN wget https://golang.org/dl/go1.21.0.linux-amd64.tar.gz \
+    && tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz \
+    && rm go1.21.0.linux-amd64.tar.gz \
+    && export PATH=$PATH:/usr/local/go/bin
 
-# Copy PHP webapp
+# Build tachoparser automatically
+RUN git clone https://github.com/traconiq/tachoparser.git /tachoparser \
+    && cd /tachoparser/cmd/dddparser \
+    && go build -o dddparser ./ \
+    && mv dddparser /usr/local/bin/dddparser
+
+# Copy PHP source code
 COPY src/ /var/www/html/
 
 # Expose Apache port
 EXPOSE 80
-
-# Start Apache
-CMD ["apache2-foreground"]
