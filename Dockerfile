@@ -1,15 +1,11 @@
 FROM php:8.2-apache
 
 # ----------------
-# PHP extensions
+# PHP extensions + utilities
 # ----------------
-RUN docker-php-ext-install mysqli pdo pdo_mysql
-
-# ----------------
-# Utilities
-# ----------------
-RUN apt-get update && apt-get install -y \
-    git wget unzip python3 python3-pip supervisor curl \
+RUN docker-php-ext-install mysqli pdo pdo_mysql \
+    && apt-get update && apt-get install -y \
+        wget unzip python3 python3-pip git supervisor default-mysql-server curl \
     && rm -rf /var/lib/apt/lists/*
 
 # ----------------
@@ -29,7 +25,7 @@ RUN git clone https://github.com/traconiq/tachoparser.git /tachoparser \
     && mv dddparser /usr/local/bin/dddparser
 
 # ----------------
-# Certificates (PKS1 + PKS2)
+# Download PKS1 + PKS2 certificates
 # ----------------
 RUN mkdir -p /tachoparser/pks1 /tachoparser/pks2 \
     && cd /tachoparser/pks1 \
@@ -41,7 +37,7 @@ RUN mkdir -p /tachoparser/pks1 /tachoparser/pks2 \
     && python3 dl_all_pks2.py
 
 # ----------------
-# Copy PHP source
+# Copy PHP source code
 # ----------------
 COPY src/ /var/www/html/
 
@@ -51,6 +47,17 @@ COPY src/ /var/www/html/
 RUN mkdir -p /var/www/html/uploads && chmod 777 /var/www/html/uploads
 
 # ----------------
-# Expose Apache
+# Install phpMyAdmin (for dev convenience)
 # ----------------
-EXPOSE 80
+RUN wget https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.zip \
+    && unzip phpMyAdmin-latest-all-languages.zip -d /var/www/html/ \
+    && mv /var/www/html/phpMyAdmin-*-all-languages /var/www/html/phpmyadmin \
+    && rm phpMyAdmin-latest-all-languages.zip
+
+# ----------------
+# Supervisord to run Apache + MySQL
+# ----------------
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+EXPOSE 80 3306
+CMD ["/usr/bin/supervisord"]
