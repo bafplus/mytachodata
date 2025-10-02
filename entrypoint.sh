@@ -1,7 +1,9 @@
 #!/bin/bash
 set -e
 
-# Initialize MariaDB only if no data exists
+# ------------------------
+# Initialize MariaDB if needed
+# ------------------------
 if [ ! -d "/var/lib/mysql/mysql" ]; then
     echo "Initializing MariaDB..."
     mysqld --initialize-insecure --user=mysql
@@ -18,5 +20,17 @@ if [ ! -d "/var/lib/mysql/mysql" ]; then
     service mysql stop
 fi
 
-# Start supervisord (manages Apache and MariaDB)
-exec /usr/bin/supervisord -n
+# Start MariaDB in the background
+echo "Starting MariaDB..."
+mysqld_safe --datadir=/var/lib/mysql &
+
+# Wait a few seconds for DB to start
+sleep 5
+
+# Optionally create your per-user database(s) here
+# Example:
+# mysql -e "CREATE DATABASE IF NOT EXISTS user1_db;"
+
+# Start Apache in the foreground
+echo "Starting Apache..."
+apache2-foreground
