@@ -35,6 +35,18 @@ mysql -u root <<-EOSQL
     FLUSH PRIVILEGES;
 EOSQL
 
+# Create users table and seed default admin
+mysql -u root ${DB_NAME} <<-EOSQL
+    CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        username VARCHAR(50) NOT NULL UNIQUE,
+        password VARCHAR(255) NOT NULL
+    );
+
+    INSERT IGNORE INTO users (username, password)
+    VALUES ('admin', '$(php -r "echo password_hash('admin', PASSWORD_DEFAULT);")');
+EOSQL
+
 # ------------------------
 # Start Apache in the foreground
 # ------------------------
