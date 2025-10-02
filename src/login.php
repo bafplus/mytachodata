@@ -1,8 +1,8 @@
 <?php
 session_start();
 $dbHost = getenv('DB_HOST') ?: '127.0.0.1';
-$dbUser = getenv('DB_USER') ?: 'root';
-$dbPass = getenv('DB_PASS') ?: 'rootpassword';
+$dbUser = getenv('DB_USER') ?: 'mytacho_user';
+$dbPass = getenv('DB_PASS') ?: 'mytacho_pass';
 
 $pdo = new PDO("mysql:host=$dbHost;dbname=main_db", $dbUser, $dbPass);
 
