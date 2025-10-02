@@ -1,26 +1,21 @@
 <?php
 session_start();
-$dbHost = getenv('DB_HOST') ?: '127.0.0.1';
-$dbUser = getenv('DB_USER') ?: 'mytacho_user';
-$dbPass = getenv('DB_PASS') ?: 'mytacho_pass';
 
-$pdo = new PDO("mysql:host=$dbHost;dbname=main_db", $dbUser, $dbPass);
+// Load DB credentials from environment variables
+$DB_HOST = getenv('DB_HOST') ?: '127.0.0.1';
+$DB_NAME = getenv('DB_NAME') ?: 'mytacho';
+$DB_USER = getenv('DB_USER') ?: 'mytacho_user';
+$DB_PASS = getenv('DB_PASS') ?: 'mytacho_pass';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = $_POST['username'];
-    $password = $_POST['password'];
-
-    $stmt = $pdo->prepare("SELECT id, password_hash FROM users WHERE username = ?");
-    $stmt->execute([$username]);
-    $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if ($user && password_verify($password, $user['password_hash'])) {
-        $_SESSION['user_id'] = $user['id'];
-        header("Location: upload.php");
-        exit;
-    } else {
-        echo "Invalid username or password";
-    }
+try {
+    $pdo = new PDO(
+        "mysql:host=$DB_HOST;dbname=$DB_NAME;charset=utf8mb4",
+        $DB_USER,
+        $DB_PASS,
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+    );
+} catch (PDOException $e) {
+    die("Database connection failed: " . $e->getMessage());
 }
 ?>
 
