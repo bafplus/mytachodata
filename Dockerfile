@@ -18,15 +18,19 @@ RUN wget https://golang.org/dl/go1.21.0.linux-amd64.tar.gz \
 # Add Go to PATH for all future RUN commands
 ENV PATH="/usr/local/go/bin:${PATH}"
 
-# ----------------
+# Install Python dependencies system-wide
+RUN pip3 install lxml requests
+
 # Download PKS1 + PKS2 certificates
-# ----------------
-RUN mkdir -p /tachoparser/pks1 /tachoparser/pks2 \
-    && cd /tachoparser/pks1 \
+RUN mkdir -p /tachoparser/pks1 /tachoparser/pks2
+
+# PKS1
+RUN cd /tachoparser/pks1 \
     && wget https://github.com/traconiq/tachoparser/raw/main/scripts/pks1/dl_all_pks1.py \
-    && pip3 install --user lxml requests \
-    && python3 dl_all_pks1.py \
-    && cd /tachoparser/pks2 \
+    && python3 dl_all_pks1.py
+
+# PKS2
+RUN cd /tachoparser/pks2 \
     && wget https://github.com/traconiq/tachoparser/raw/main/scripts/pks2/dl_all_pks2.py \
     && python3 dl_all_pks2.py
 
