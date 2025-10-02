@@ -1,11 +1,13 @@
 FROM php:8.2-apache
 
 # ----------------
-# PHP extensions + utilities
+# System utilities + PHP extensions
 # ----------------
-RUN docker-php-ext-install mysqli pdo pdo_mysql \
-    && apt-get update && apt-get install -y \
-        wget unzip python3 python3-pip git supervisor default-mysql-server curl \
+RUN apt-get update && apt-get install -y \
+        default-mysql-server \
+        wget unzip git supervisor python3 python3-pip \
+        python3-lxml python3-requests \
+    && docker-php-ext-install mysqli pdo pdo_mysql \
     && rm -rf /var/lib/apt/lists/*
 
 # ----------------
@@ -14,14 +16,16 @@ RUN docker-php-ext-install mysqli pdo pdo_mysql \
 RUN wget https://golang.org/dl/go1.21.0.linux-amd64.tar.gz \
     && tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz \
     && rm go1.21.0.linux-amd64.tar.gz
-
-# Add Go to PATH for all future RUN commands
 ENV PATH="/usr/local/go/bin:${PATH}"
 
-# Install Python dependencies system-wide
-RUN pip3 install lxml requests
+# ----------------
+# Clone tachoparser
+# ----------------
+RUN git clone https://github.com/traconiq/tachoparser.git /tachoparser
 
+# ----------------
 # Download PKS1 + PKS2 certificates
+# ----------------
 RUN mkdir -p /tachoparser/pks1 /tachoparser/pks2
 
 # PKS1
@@ -35,10 +39,9 @@ RUN cd /tachoparser/pks2 \
     && python3 dl_all_pks2.py
 
 # ----------------
-# Build tachoparser
+# Build tachoparser (after certificates)
 # ----------------
-RUN git clone https://github.com/traconiq/tachoparser.git /tachoparser \
-    && cd /tachoparser/cmd/dddparser \
+RUN cd /tachoparser/cmd/dddparser \
     && go build -o dddparser ./ \
     && mv dddparser /usr/local/bin/dddparser
 
@@ -65,7 +68,9 @@ RUN wget https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.zi
 # ----------------
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
+# ----------------
 # Expose Apache + MySQL ports
+# ----------------
 EXPOSE 80 3306
 
 CMD ["/usr/bin/supervisord"]
