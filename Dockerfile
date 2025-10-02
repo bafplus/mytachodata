@@ -26,14 +26,14 @@ WORKDIR /build/tachoparser/cmd/dddparser
 RUN go build -o dddparser
 
 # ------------------------
-# Stage 2: PHP + Apache + MySQL + phpMyAdmin
+# Stage 2: PHP + Apache + MariaDB + phpMyAdmin
 # ------------------------
 FROM php:8.2-apache
 
 # Enable PHP mysqli
 RUN docker-php-ext-install mysqli
 
-# Install MySQL server, supervisord, wget, unzip
+# Install MariaDB server, supervisord, wget, unzip
 RUN apt-get update && apt-get install -y \
         mariadb-server \
         supervisor \
@@ -62,6 +62,5 @@ COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 # Expose ports
 EXPOSE 80 3306
 
-# Start supervisord (runs Apache + MySQL)
+# Start supervisord (runs Apache + MariaDB)
 CMD ["/usr/bin/supervisord"]
-
