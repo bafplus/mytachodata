@@ -31,7 +31,7 @@ FROM php:8.2-apache
 # Install PHP extensions and MariaDB server
 RUN apt-get update && \
     apt-get install -y mariadb-server unzip wget && \
-    docker-php-ext-install mysqli && \
+    docker-php-ext-install mysqli pdo_mysql && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy dddparser binary from builder
