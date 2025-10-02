@@ -1,9 +1,13 @@
 #!/bin/bash
 set -e
 
-DB_NAME="mytacho"
-DB_USER="mytacho_user"
-DB_PASS="mytacho_pass"
+# ------------------------
+# Load ENV variables with defaults if not provided
+# ------------------------
+DB_NAME="${DB_NAME:-mytacho}"
+DB_USER="${DB_USER:-mytacho_user}"
+DB_PASS="${DB_PASS:-mytacho_pass}"
+DB_HOST="${DB_HOST:-127.0.0.1}"
 
 # ------------------------
 # Initialize MariaDB if needed
@@ -25,13 +29,14 @@ done
 
 # Create database and user if not exists
 mysql -u root <<-EOSQL
-    CREATE DATABASE IF NOT EXISTS ${DB_NAME};
+    CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`;
     CREATE USER IF NOT EXISTS '${DB_USER}'@'%' IDENTIFIED BY '${DB_PASS}';
-    GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'%';
+    GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'%';
     FLUSH PRIVILEGES;
 EOSQL
 
+# ------------------------
 # Start Apache in the foreground
+# ------------------------
 echo "Starting Apache..."
 exec apache2-foreground
-
