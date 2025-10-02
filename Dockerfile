@@ -24,12 +24,15 @@ WORKDIR /build/tachoparser/cmd/dddparser
 RUN go build -o dddparser
 
 # ------------------------
-# Stage 2: PHP + Apache
+# Stage 2: PHP + Apache + MariaDB
 # ------------------------
 FROM php:8.2-apache
 
-# Enable PHP mysqli
-RUN docker-php-ext-install mysqli
+# Install PHP extensions and MariaDB server
+RUN apt-get update && \
+    apt-get install -y mariadb-server && \
+    docker-php-ext-install mysqli && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy dddparser binary from builder
 COPY --from=builder /build/tachoparser/cmd/dddparser/dddparser /usr/local/bin/dddparser
@@ -40,12 +43,13 @@ RUN mkdir -p /var/www/html/uploads && chown www-data:www-data /var/www/html/uplo
 # Copy PHP webapp
 COPY src/ /var/www/html/
 
-# Copy entrypoint script and make it executable
+# Copy entrypoint script
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Expose Apache port
-EXPOSE 80
+# Expose ports
+EXPOSE 80 3306
 
 # Set entrypoint
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+
