@@ -29,6 +29,20 @@ services:
     networks:
       - mynet
 
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: mytachodata_phpmyadmin
+    environment:
+      PMA_HOST: db
+      PMA_USER: root
+      PMA_PASSWORD: rootpassword
+    ports:
+      - "8086:80"
+    depends_on:
+      - db
+    networks:
+      - mynet
+
 volumes:
   db_data:
 
