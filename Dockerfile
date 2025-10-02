@@ -62,8 +62,7 @@ RUN echo '<Directory "/var/www/html/phpmyadmin">\n\
     AllowOverride All\n\
     Require all granted\n\
 </Directory>' > /etc/apache2/conf-available/phpmyadmin.conf && \
-    a2enconf phpmyadmin && \
-    service apache2 reload
+    a2enconf phpmyadmin
 
 # Fix permissions for phpMyAdmin
 RUN chown -R www-data:www-data /var/www/html/phpmyadmin
