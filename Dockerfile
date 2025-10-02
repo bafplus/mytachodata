@@ -24,10 +24,16 @@ ENV PATH="/usr/local/go/bin:${PATH}"
 RUN git clone https://github.com/traconiq/tachoparser.git /tachoparser
 
 # ----------------
-# Download PKS1 + PKS2 certificates
+# Create certificate folders
 # ----------------
-RUN mkdir -p /tachoparser/pks1 /tachoparser/pks2
+RUN mkdir -p /tachoparser/internal/pkg/certificates/pks1 \
+    && mkdir -p /tachoparser/internal/pkg/certificates/pks2 \
+    && mkdir -p /tachoparser/pks1 \
+    && mkdir -p /tachoparser/pks2
 
+# ----------------
+# Download PKS1 + PKS2 scripts and run them
+# ----------------
 # PKS1
 RUN cd /tachoparser/pks1 \
     && wget https://github.com/traconiq/tachoparser/raw/main/scripts/pks1/dl_all_pks1.py \
@@ -39,7 +45,7 @@ RUN cd /tachoparser/pks2 \
     && python3 dl_all_pks2.py
 
 # ----------------
-# Build tachoparser (after certificates)
+# Build tachoparser binary
 # ----------------
 RUN cd /tachoparser/cmd/dddparser \
     && go build -o dddparser ./ \
