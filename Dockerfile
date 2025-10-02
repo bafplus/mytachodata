@@ -35,7 +35,7 @@ RUN docker-php-ext-install mysqli
 
 # Install MySQL server, supervisord, wget, unzip
 RUN apt-get update && apt-get install -y \
-        mysql-server \
+        mariadb-server \
         supervisor \
         wget \
         unzip \
