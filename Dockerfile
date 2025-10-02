@@ -19,14 +19,6 @@ RUN wget https://golang.org/dl/go1.21.0.linux-amd64.tar.gz \
 ENV PATH="/usr/local/go/bin:${PATH}"
 
 # ----------------
-# Build tachoparser
-# ----------------
-RUN git clone https://github.com/traconiq/tachoparser.git /tachoparser \
-    && cd /tachoparser/cmd/dddparser \
-    && go build -o dddparser ./ \
-    && mv dddparser /usr/local/bin/dddparser
-
-# ----------------
 # Download PKS1 + PKS2 certificates
 # ----------------
 RUN mkdir -p /tachoparser/pks1 /tachoparser/pks2 \
@@ -37,6 +29,14 @@ RUN mkdir -p /tachoparser/pks1 /tachoparser/pks2 \
     && cd /tachoparser/pks2 \
     && wget https://github.com/traconiq/tachoparser/raw/main/scripts/pks2/dl_all_pks2.py \
     && python3 dl_all_pks2.py
+
+# ----------------
+# Build tachoparser
+# ----------------
+RUN git clone https://github.com/traconiq/tachoparser.git /tachoparser \
+    && cd /tachoparser/cmd/dddparser \
+    && go build -o dddparser ./ \
+    && mv dddparser /usr/local/bin/dddparser
 
 # ----------------
 # Copy PHP source code
