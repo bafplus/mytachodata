@@ -5,23 +5,21 @@ FROM golang:1.21-bullseye AS builder
 
 WORKDIR /build
 
-# Install Python & dependencies for PKCS scripts
-RUN apt-get update && apt-get install -y python3 python3-pip git unzip && \
-    pip3 install --user lxml requests && rm -rf /var/lib/apt/lists/*
+# Install Python & dependencies for PKS scripts
+RUN apt-get update && apt-get install -y python3 python3-pip git unzip wget && \
+    pip3 install lxml requests && rm -rf /var/lib/apt/lists/*
 
 # Clone tachoparser repo
 RUN git clone https://github.com/traconiq/tachoparser.git tachoparser
 
 WORKDIR /build/tachoparser/scripts
 
-# Create certificate folders
-RUN mkdir -p ../internal/pkg/certificates/pks1 ../internal/pkg/certificates/pks2
-
 # Download PKS1 + PKS2 certificates
-RUN cd pks1 && python3 dl_all_pks1.py && cd .. && \
-    cd pks2 && python3 dl_all_pks2.py && cd ..
+RUN mkdir -p pks1 pks2 \
+    && cd pks1 && python3 dl_all_pks1.py && cd .. \
+    && cd pks2 && python3 dl_all_pks2.py && cd ..
 
-# Build dddparser binary
+# Build dddparser
 WORKDIR /build/tachoparser/cmd/dddparser
 RUN go build -o dddparser
 
@@ -30,37 +28,40 @@ RUN go build -o dddparser
 # ------------------------
 FROM php:8.2-apache
 
-# Enable PHP mysqli and PDO MySQL/MariaDB
-RUN docker-php-ext-install mysqli pdo pdo_mysql
-
-# Install MariaDB server, supervisord, wget, unzip
+# Install necessary packages
 RUN apt-get update && apt-get install -y \
         mariadb-server \
         supervisor \
-        wget \
         unzip \
+        wget \
+        curl \
+        less \
+        vim \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dddparser binary from builder
+# Install PHP extensions
+RUN docker-php-ext-install mysqli pdo pdo_mysql
+
+# Copy dddparser binary
 COPY --from=builder /build/tachoparser/cmd/dddparser/dddparser /usr/local/bin/dddparser
 
-# Create uploads folder
-RUN mkdir -p /var/www/html/uploads && chown www-data:www-data /var/www/html/uploads
+# Create folders
+RUN mkdir -p /var/www/html/uploads /var/www/html/node /var/www/html/phpmyadmin /var/log/supervisor && \
+    chown -R www-data:www-data /var/www/html/uploads
 
 # Copy PHP webapp
 COPY src/ /var/www/html/
 
-# Install phpMyAdmin (for dev convenience)
-RUN wget https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.zip -O /tmp/pma.zip \
-    && unzip /tmp/pma.zip -d /var/www/html/ \
-    && mv /var/www/html/phpMyAdmin-*-all-languages /var/www/html/phpmyadmin \
-    && rm /tmp/pma.zip
+# Download phpMyAdmin (latest stable)
+RUN wget https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.zip -O /tmp/pma.zip && \
+    unzip /tmp/pma.zip -d /var/www/html/phpmyadmin --strip-components=1 && \
+    rm /tmp/pma.zip
 
-# Supervisord config
+# Copy supervisord configuration
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# Expose ports
-EXPOSE 80 3306
+# Expose Apache
+EXPOSE 80
 
-# Start supervisord (runs Apache + MariaDB)
-CMD ["/usr/bin/supervisord"]
+# Start supervisord
+CMD ["/usr/bin/supervisord", "-n"]
