@@ -27,9 +27,12 @@ mysqld_safe --datadir=/var/lib/mysql &
 # Wait a few seconds for DB to start
 sleep 5
 
-# Optionally create your per-user database(s) here
-# Example:
-# mysql -e "CREATE DATABASE IF NOT EXISTS user1_db;"
+mysql -u root <<-EOSQL
+    CREATE DATABASE IF NOT EXISTS mytacho;
+    CREATE USER IF NOT EXISTS 'mytacho_user'@'%' IDENTIFIED BY 'mytacho_pass';
+    GRANT ALL PRIVILEGES ON mytacho.* TO 'mytacho_user'@'%';
+    FLUSH PRIVILEGES;
+EOSQL
 
 # Start Apache in the foreground
 echo "Starting Apache..."
