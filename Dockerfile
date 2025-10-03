@@ -57,15 +57,17 @@ RUN wget https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.zi
     rm /tmp/pma.zip
 
 # Configure phpMyAdmin: create config.inc.php
-RUN echo "<?php
-\$i = 1;
-\$cfg['Servers'][\$i]['host'] = '127.0.0.1';
-\$cfg['Servers'][\$i]['port'] = '3306';
-\$cfg['Servers'][\$i]['auth_type'] = 'cookie';
-\$cfg['Servers'][\$i]['user'] = getenv('DB_USER');
-\$cfg['Servers'][\$i]['password'] = getenv('DB_PASS');
-\$cfg['blowfish_secret'] = 'SomeRandomBlowfishSecret1234';
-?>" > /var/www/html/phpmyadmin/config.inc.php
+RUN cat << 'EOF' > /var/www/html/phpmyadmin/config.inc.php
+<?php
+$i = 1;
+$cfg['Servers'][$i]['host'] = '127.0.0.1';
+$cfg['Servers'][$i]['port'] = '3306';
+$cfg['Servers'][$i]['auth_type'] = 'cookie';
+$cfg['Servers'][$i]['user'] = getenv('DB_USER');
+$cfg['Servers'][$i]['password'] = getenv('DB_PASS');
+$cfg['blowfish_secret'] = 'SomeRandomBlowfishSecret1234';
+?>
+EOF
 
 # ------------------------
 # Install AdminLTE (latest)
