@@ -1,6 +1,5 @@
 <?php
-// inc/auth.php
-// Only checks if user is logged in
+// Only checks if a session exists, no session_start() here
 if (!isset($_SESSION['user'])) {
     header("Location: login.php");
     exit;
