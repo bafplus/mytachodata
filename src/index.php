@@ -3,7 +3,7 @@ session_start();
 
 // Redirect to login if not logged in
 if (!isset($_SESSION['user'])) {
-    header("Location: ../login.php");
+    header("Location: login.php"); // Adjust path if login.php is in src/
     exit;
 }
 
@@ -35,6 +35,7 @@ require_once __DIR__ . '/inc/db.php';
 
 <!-- Include footer -->
 <?php include __DIR__ . '/inc/footer.php'; ?>
+
 
 
 
