@@ -1,45 +1,63 @@
 <?php
-session_start();
+// src/login.php
 require_once __DIR__ . '/inc/db.php';
 
+// If form submitted
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $stmt = $pdo->prepare("SELECT id, username FROM users WHERE username=? AND password=? LIMIT 1");
-    $stmt->execute([$_POST['username'], $_POST['password']]); // plaintext for now
-    $user = $stmt->fetch();
-    if ($user) {
-        $_SESSION['user_id'] = $user['id'];
-        $_SESSION['username'] = $user['username'];
-        header("Location: dashboard.php");
+    $username = $_POST['username'] ?? '';
+    $password = $_POST['password'] ?? '';
+
+    // For now: simple check against admin/admin
+    if ($username === 'admin' && $password === 'admin') {
+        header("Location: views/index.php");
         exit;
     } else {
-        $error = "Invalid login";
+        $error = "Invalid username or password.";
     }
 }
 ?>
+
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>Login</title>
-  <link rel="stylesheet" href="/adminlte/dist/css/adminlte.min.css">
+  <meta charset="UTF-8">
+  <title>Login | MyTacho</title>
+  <link rel="stylesheet" href="adminlte/dist/css/adminlte.min.css">
+  <link rel="stylesheet" href="adminlte/plugins/fontawesome-free/css/all.min.css">
 </head>
 <body class="hold-transition login-page">
 <div class="login-box">
-  <div class="card card-outline card-primary">
-    <div class="card-header"><h1 class="h4">MyTacho Login</h1></div>
-    <div class="card-body">
-      <?php if (!empty($error)): ?><p class="text-danger"><?= $error ?></p><?php endif; ?>
-      <form method="POST">
+  <div class="login-logo"><b>My</b>Tacho</div>
+  <div class="card">
+    <div class="card-body login-card-body">
+      <p class="login-box-msg">Sign in to start your session</p>
+
+      <?php if (!empty($error)): ?>
+        <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
+      <?php endif; ?>
+
+      <form method="post" action="login.php">
         <div class="input-group mb-3">
-          <input type="text" name="username" class="form-control" placeholder="Username">
+          <input type="text" name="username" class="form-control" placeholder="Username" required>
+          <div class="input-group-append"><div class="input-group-text"><span class="fas fa-user"></span></div></div>
         </div>
         <div class="input-group mb-3">
-          <input type="password" name="password" class="form-control" placeholder="Password">
+          <input type="password" name="password" class="form-control" placeholder="Password" required>
+          <div class="input-group-append"><div class="input-group-text"><span class="fas fa-lock"></span></div></div>
         </div>
-        <button type="submit" class="btn btn-primary btn-block">Login</button>
+        <div class="row">
+          <div class="col-8"></div>
+          <div class="col-4">
+            <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+          </div>
+        </div>
       </form>
     </div>
   </div>
 </div>
+<script src="adminlte/plugins/jquery/jquery.min.js"></script>
+<script src="adminlte/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="adminlte/dist/js/adminlte.min.js"></script>
 </body>
 </html>
+
