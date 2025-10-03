@@ -56,7 +56,18 @@ RUN wget https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.zi
     unzip /tmp/pma.zip -d /var/www/html/phpmyadmin && \
     rm /tmp/pma.zip
 
- # Configure Apache for phpMyAdmin
+# Configure phpMyAdmin: create config.inc.php
+RUN echo "<?php
+\$i = 1;
+\$cfg['Servers'][\$i]['host'] = '127.0.0.1';
+\$cfg['Servers'][\$i]['port'] = '3306';
+\$cfg['Servers'][\$i]['auth_type'] = 'cookie';
+\$cfg['Servers'][\$i]['user'] = getenv('DB_USER');
+\$cfg['Servers'][\$i]['password'] = getenv('DB_PASS');
+\$cfg['blowfish_secret'] = 'SomeRandomBlowfishSecret1234';
+?>" > /var/www/html/phpmyadmin/config.inc.php
+
+# Configure Apache for phpMyAdmin
 RUN echo '<Directory "/var/www/html/phpmyadmin">\n\
     Options Indexes FollowSymLinks\n\
     AllowOverride All\n\
@@ -76,5 +87,3 @@ EXPOSE 80 3306
 
 # Entrypoint
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-
-
