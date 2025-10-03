@@ -9,8 +9,7 @@
   <div class="sidebar">
     <!-- Sidebar Menu -->
     <nav class="mt-2">
-      <ul class="nav nav-pills nav-sidebar flex-column" 
-          data-widget="treeview" role="menu" data-accordion="false">
+      <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu">
         <li class="nav-item">
           <a href="index.php" class="nav-link">
             <i class="nav-icon fas fa-tachometer-alt"></i>
@@ -29,3 +28,4 @@
   </div>
   <!-- /.sidebar -->
 </aside>
+
