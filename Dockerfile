@@ -42,14 +42,12 @@ COPY --from=builder /build/tachoparser/cmd/dddparser/dddparser /usr/local/bin/dd
 COPY src/ /var/www/html/
 RUN mkdir -p /var/www/html/uploads && chown www-data:www-data /var/www/html/uploads
 
-# ------------------------
-# AdminLTE (via git + npm build)
-# ------------------------
-RUN git clone https://github.com/ColorlibHQ/AdminLTE.git /var/www/html/adminlte && \
-    cd /var/www/html/adminlte && \
-    npm install && npm run build && \
+# AdminLTE with plugins included
+RUN wget https://github.com/ColorlibHQ/AdminLTE/archive/refs/tags/v3.2.0.zip -O /tmp/adminlte.zip && \
+    unzip /tmp/adminlte.zip -d /var/www/html/ && \
+    mv /var/www/html/AdminLTE-3.2.0 /var/www/html/adminlte && \
+    rm /tmp/adminlte.zip && \
     chown -R www-data:www-data /var/www/html/adminlte
-
 # ------------------------
 # phpMyAdmin
 # ------------------------
