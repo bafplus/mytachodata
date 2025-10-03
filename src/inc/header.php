@@ -4,17 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MyTacho Dashboard</title>
-  
   <!-- Font Awesome -->
-  <link rel="stylesheet" href="/adminlte/plugins/fontawesome-free/css/all.min.css">
+  <link rel="stylesheet" href="adminlte/plugins/fontawesome-free/css/all.min.css">
   <!-- AdminLTE CSS -->
-  <link rel="stylesheet" href="/adminlte/dist/css/adminlte.min.css">
+  <link rel="stylesheet" href="adminlte/dist/css/adminlte.min.css">
 </head>
-<body class="hold-transition sidebar-mini layout-fixed">
+<body class="hold-transition sidebar-mini">
 <div class="wrapper">
-  
+
   <!-- Navbar -->
   <nav class="main-header navbar navbar-expand navbar-white navbar-light">
+    <!-- Left navbar links -->
     <ul class="navbar-nav">
       <li class="nav-item">
         <a class="nav-link" data-widget="pushmenu" href="#"><i class="fas fa-bars"></i></a>
@@ -23,6 +23,39 @@
         <a href="index.php" class="nav-link">Home</a>
       </li>
     </ul>
+
+    <!-- Right navbar links -->
+    <ul class="navbar-nav ml-auto">
+      <!-- Theme toggle -->
+      <li class="nav-item">
+        <a class="nav-link" href="#" id="theme-toggle">
+          <i class="fas fa-adjust"></i>
+        </a>
+      </li>
+
+      <!-- User page link -->
+      <li class="nav-item">
+        <a class="nav-link" href="user.php">
+          <i class="fas fa-user"></i>
+        </a>
+      </li>
+
+      <!-- Logout -->
+      <li class="nav-item">
+        <a class="nav-link" href="logout.php">
+          <i class="fas fa-sign-out-alt"></i> Logout
+        </a>
+      </li>
+    </ul>
   </nav>
   <!-- /.navbar -->
+
+<script>
+  // Basic theme toggle script (light/dark)
+  const toggleBtn = document.getElementById('theme-toggle');
+  toggleBtn.addEventListener('click', () => {
+    document.body.classList.toggle('dark-mode');
+  });
+</script>
+
 
