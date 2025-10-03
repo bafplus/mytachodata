@@ -20,16 +20,19 @@ until mysqladmin ping --silent; do
     sleep 2
 done
 
-# Create database, user, and default table
+# Create database and user if not exists
 mysql -u root <<-EOSQL
 CREATE DATABASE IF NOT EXISTS ${DB_NAME};
 CREATE USER IF NOT EXISTS '${DB_USER}'@'%' IDENTIFIED BY '${DB_PASS}';
 GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'%';
 FLUSH PRIVILEGES;
+EOSQL
 
+# Create users table and default admin
+DB_PASS_HASH=$(php -r "echo password_hash('admin', PASSWORD_BCRYPT);")
+mysql -u root <<-EOSQL
 USE ${DB_NAME};
 
--- Create 'users' table if it doesn't exist
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
@@ -38,13 +41,9 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Insert default admin user (password: admin)
-INSERT IGNORE INTO users (username, password, role) VALUES (
-    'admin',
-    -- bcrypt hash of "admin"
-    '$2y$10$KIX0D/3v/1H1rKJ9i5z0fu/6Z9YypiQb2t6e8r4HZQ9hz7LJ9s9uS',
-    'admin'
-);
+INSERT INTO users (username, password, role)
+SELECT 'admin', '${DB_PASS_HASH}', 'admin'
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE username='admin');
 EOSQL
 
 # Start Apache in foreground
