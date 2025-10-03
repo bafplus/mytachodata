@@ -8,7 +8,7 @@ DB_PASS="mytacho_pass"
 # Initialize MariaDB if not present
 if [ ! -d "/var/lib/mysql/mysql" ]; then
     echo "Initializing MariaDB..."
-    mysqld --initialize-insecure --user=mysql
+    mysql_install_db --user=mysql --datadir=/var/lib/mysql > /dev/null
 fi
 
 # Start MariaDB in background
