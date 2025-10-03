@@ -42,12 +42,12 @@ COPY --from=builder /build/tachoparser/cmd/dddparser/dddparser /usr/local/bin/dd
 COPY src/ /var/www/html/
 RUN mkdir -p /var/www/html/uploads && chown www-data:www-data /var/www/html/uploads
 
-# AdminLTE: download full repo (with plugins)
-RUN wget https://github.com/ColorlibHQ/AdminLTE/archive/refs/heads/master.zip -O /tmp/adminlte.zip && \
+RUN wget https://github.com/ColorlibHQ/AdminLTE/releases/download/v3.2.0/AdminLTE-3.2.0.zip -O /tmp/adminlte.zip && \
     unzip /tmp/adminlte.zip -d /var/www/html/ && \
-    mv /var/www/html/AdminLTE-master /var/www/html/adminlte && \
+    mv /var/www/html/AdminLTE-3.2.0 /var/www/html/adminlte && \
     rm /tmp/adminlte.zip && \
     chown -R www-data:www-data /var/www/html/adminlte
+
 
 # phpMyAdmin
 RUN wget https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.zip -O /tmp/pma.zip && \
