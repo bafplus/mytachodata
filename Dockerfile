@@ -23,6 +23,12 @@ RUN go build -o dddparser
 # ------------------------
 FROM php:8.2-apache
 
+# Set database environment values
+ENV DB_HOST=127.0.0.1 \
+    DB_NAME=mytacho \
+    DB_USER=mytacho_user \
+    DB_PASS=mytacho_pass
+
 # PHP extensions + MariaDB
 RUN apt-get update && \
     apt-get install -y mariadb-server unzip wget && \
