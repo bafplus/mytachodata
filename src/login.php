@@ -18,7 +18,6 @@ if ($username === 'admin' && $password === 'admin') {
     } else {
         $error = "Invalid username or password.";
     }
-}
 ?>
 
 <!DOCTYPE html>
