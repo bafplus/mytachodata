@@ -1,14 +1,19 @@
 <?php
 session_start();
+
+// Redirect if not logged in
 if (!isset($_SESSION['user'])) {
     header("Location: login.php");
     exit;
 }
-require_once __DIR__ . '/inc/db.php';
-?>
 
-<?php include __DIR__ . '/inc/header.php'; ?>
-<?php include __DIR__ . '/inc/sidebar.php'; ?>
+// Include DB connection if needed
+require_once __DIR__ . '/inc/db.php';
+
+// Include header + sidebar
+include __DIR__ . '/inc/header.php';
+include __DIR__ . '/inc/sidebar.php';
+?>
 
 <!-- Content Wrapper -->
 <div class="content-wrapper">
@@ -27,3 +32,4 @@ require_once __DIR__ . '/inc/db.php';
 </div>
 
 <?php include __DIR__ . '/inc/footer.php'; ?>
+
