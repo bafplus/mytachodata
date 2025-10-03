@@ -1,6 +1,8 @@
 <?php
-session_start();
-if (!isset($_SESSION['user_id'])) {
-    header("Location: /views/login.php");
+// inc/auth.php
+// Only checks if user is logged in
+if (!isset($_SESSION['user'])) {
+    header("Location: login.php");
     exit;
 }
+
