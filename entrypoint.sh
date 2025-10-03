@@ -34,6 +34,17 @@ mysql -u root <<-EOSQL
     FLUSH PRIVILEGES;
 EOSQL
 
+# Create DB schema
+mysql -u root <<-EOSQL
+    USE ${DB_NAME};
+    CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        username VARCHAR(50) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL
+    );
+    INSERT IGNORE INTO users (username, password) VALUES ('admin', 'admin');
+EOSQL
+
 # Keep MariaDB running in background, start Apache in foreground
 echo "Starting Apache..."
 exec apache2-foreground
