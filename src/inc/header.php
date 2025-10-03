@@ -24,29 +24,30 @@
       </li>
     </ul>
 
-    <!-- Right navbar links -->
-    <ul class="navbar-nav ml-auto">
-      <!-- Dark/Light theme toggle -->
-      <li class="nav-item">
-        <a class="nav-link" href="#" id="theme-toggle" title="Toggle Dark/Light Theme">
-          <i class="fas fa-adjust"></i>
-        </a>
-      </li>
+   <!-- Navbar Right Menu -->
+<ul class="navbar-nav ml-auto">
+  <!-- Theme Toggle Button -->
+  <li class="nav-item">
+    <a class="nav-link" href="#" id="theme-toggle">
+      <i class="fas fa-adjust"></i>
+    </a>
+  </li>
 
-      <!-- User page link -->
-      <li class="nav-item">
-        <a class="nav-link" href="user.php" title="User Page">
-          <i class="fas fa-user"></i>
-        </a>
-      </li>
+  <!-- User Page -->
+  <li class="nav-item">
+    <a class="nav-link" href="user.php">
+      <i class="fas fa-user"></i>
+    </a>
+  </li>
 
-      <!-- Logout -->
-      <li class="nav-item">
-        <a class="nav-link" href="logout.php" title="Logout">
-          <i class="fas fa-sign-out-alt"></i>
-        </a>
-      </li>
-    </ul>
+  <!-- Logout -->
+  <li class="nav-item">
+    <a class="nav-link" href="logout.php">
+      <i class="fas fa-sign-out-alt"></i>
+    </a>
+  </li>
+</ul>
+
   </nav>
   <!-- /.navbar -->
 
