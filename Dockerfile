@@ -67,6 +67,14 @@ RUN echo "<?php
 \$cfg['blowfish_secret'] = 'SomeRandomBlowfishSecret1234';
 ?>" > /var/www/html/phpmyadmin/config.inc.php
 
+# ------------------------
+# Install AdminLTE (latest)
+# ------------------------
+RUN wget https://github.com/ColorlibHQ/AdminLTE/archive/refs/heads/master.zip -O /tmp/adminlte.zip && \
+    unzip /tmp/adminlte.zip -d /var/www/html/ && \
+    mv /var/www/html/AdminLTE-master /var/www/html/adminlte && \
+    rm /tmp/adminlte.zip
+
 # Configure Apache for phpMyAdmin
 RUN echo '<Directory "/var/www/html/phpmyadmin">\n\
     Options Indexes FollowSymLinks\n\
