@@ -1,3 +1,6 @@
+  </div>
+  <!-- /.content-wrapper -->
+
   <!-- Main Footer -->
   <footer class="main-footer">
     <div class="float-right d-none d-sm-block">
@@ -10,12 +13,9 @@
 
 <!-- jQuery -->
 <script src="/adminlte/plugins/jquery/jquery.min.js"></script>
-<!-- Bootstrap 4 -->
+<!-- Bootstrap -->
 <script src="/adminlte/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
 <!-- AdminLTE App -->
 <script src="/adminlte/dist/js/adminlte.min.js"></script>
-<!-- overlayScrollbars -->
-<script src="/adminlte/plugins/overlayScrollbars/js/jquery.overlayScrollbars.min.js"></script>
 </body>
 </html>
-
