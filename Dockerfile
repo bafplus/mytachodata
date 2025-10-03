@@ -29,9 +29,9 @@ ENV DB_HOST=127.0.0.1 \
     DB_USER=mytacho_user \
     DB_PASS=mytacho_pass
 
-# PHP extensions + MariaDB
+# PHP extensions + MariaDB + Node.js
 RUN apt-get update && \
-    apt-get install -y mariadb-server unzip wget && \
+    apt-get install -y mariadb-server unzip wget git nodejs npm && \
     docker-php-ext-install mysqli pdo_mysql && \
     rm -rf /var/lib/apt/lists/*
 
@@ -42,14 +42,17 @@ COPY --from=builder /build/tachoparser/cmd/dddparser/dddparser /usr/local/bin/dd
 COPY src/ /var/www/html/
 RUN mkdir -p /var/www/html/uploads && chown www-data:www-data /var/www/html/uploads
 
-RUN wget https://github.com/ColorlibHQ/AdminLTE/archive/refs/tags/v4.0.0-rc4.zip -O /tmp/adminlte.zip && \
-    unzip /tmp/adminlte.zip -d /var/www/html/ && \
-    mv /var/www/html/AdminLTE-4.0.0-rc4 /var/www/html/adminlte && \
-    rm /tmp/adminlte.zip && \
+# ------------------------
+# AdminLTE (via git + npm build)
+# ------------------------
+RUN git clone https://github.com/ColorlibHQ/AdminLTE.git /var/www/html/adminlte && \
+    cd /var/www/html/adminlte && \
+    npm install && npm run build && \
     chown -R www-data:www-data /var/www/html/adminlte
 
-
+# ------------------------
 # phpMyAdmin
+# ------------------------
 RUN wget https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.zip -O /tmp/pma.zip && \
     unzip /tmp/pma.zip -d /var/www/html/phpmyadmin && \
     rm /tmp/pma.zip
@@ -65,7 +68,6 @@ RUN cat << 'EOF' > /etc/apache2/conf-available/phpmyadmin.conf
 EOF
 
 RUN a2enconf phpmyadmin
-
 
 # Entrypoint
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
