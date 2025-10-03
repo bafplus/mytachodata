@@ -1,6 +1,6 @@
 <?php
 session_start();
-require_once("../inc/db.php");
+require_once __DIR__ . '/inc/db.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt = $pdo->prepare("SELECT id, username FROM users WHERE username=? AND password=? LIMIT 1");
