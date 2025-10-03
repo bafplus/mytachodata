@@ -26,24 +26,24 @@
 
     <!-- Right navbar links -->
     <ul class="navbar-nav ml-auto">
-      <!-- Theme toggle -->
+      <!-- Dark/Light theme toggle -->
       <li class="nav-item">
-        <a class="nav-link" href="#" id="theme-toggle">
+        <a class="nav-link" href="#" id="theme-toggle" title="Toggle Dark/Light Theme">
           <i class="fas fa-adjust"></i>
         </a>
       </li>
 
       <!-- User page link -->
       <li class="nav-item">
-        <a class="nav-link" href="user.php">
+        <a class="nav-link" href="user.php" title="User Page">
           <i class="fas fa-user"></i>
         </a>
       </li>
 
       <!-- Logout -->
       <li class="nav-item">
-        <a class="nav-link" href="logout.php">
-          <i class="fas fa-sign-out-alt"></i> Logout
+        <a class="nav-link" href="logout.php" title="Logout">
+          <i class="fas fa-sign-out-alt"></i>
         </a>
       </li>
     </ul>
@@ -51,10 +51,13 @@
   <!-- /.navbar -->
 
 <script>
-  // Basic theme toggle script (light/dark)
-  const toggleBtn = document.getElementById('theme-toggle');
-  toggleBtn.addEventListener('click', () => {
-    document.body.classList.toggle('dark-mode');
+  // Simple theme toggle: adds/removes 'dark-mode' class on body
+  document.addEventListener('DOMContentLoaded', () => {
+    const toggle = document.getElementById('theme-toggle');
+    toggle.addEventListener('click', (e) => {
+      e.preventDefault();
+      document.body.classList.toggle('dark-mode');
+    });
   });
 </script>
 
