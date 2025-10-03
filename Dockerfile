@@ -47,12 +47,18 @@ RUN wget https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.zi
     unzip /tmp/pma.zip -d /var/www/html/phpmyadmin && \
     rm /tmp/pma.zip
 RUN chown -R www-data:www-data /var/www/html/phpmyadmin
-RUN echo '<Directory "/var/www/html/phpmyadmin">\
-    Options Indexes FollowSymLinks\
-    AllowOverride All\
-    Require all granted\
-</Directory>' > /etc/apache2/conf-available/phpmyadmin.conf && \
-    a2enconf phpmyadmin
+
+# Configure Apache for phpMyAdmin using a proper heredoc
+RUN cat << 'EOF' > /etc/apache2/conf-available/phpmyadmin.conf
+<Directory "/var/www/html/phpmyadmin">
+    Options Indexes FollowSymLinks
+    AllowOverride All
+    Require all granted
+</Directory>
+EOF
+
+RUN a2enconf phpmyadmin
+
 
 # Entrypoint
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
