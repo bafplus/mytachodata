@@ -8,9 +8,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
 
     // For now: simple check against admin/admin
-    if ($username === 'admin' && $password === 'admin') {
-        header("Location: views/index.php");
-        exit;
+if ($username === 'admin' && $password === 'admin') {
+    session_start();
+    $_SESSION['user'] = 'admin';
+    header("Location: views/index.php");
+    exit;
+}
+
     } else {
         $error = "Invalid username or password.";
     }
