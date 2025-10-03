@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($username === 'admin' && $password === 'admin') {
     session_start();
     $_SESSION['user'] = 'admin';
-    header("Location: views/index.php");
+    header("Location: index.php");
     exit;
 }
 
