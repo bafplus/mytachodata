@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MyTacho Dashboard</title>
   <!-- Font Awesome -->
-  <link rel="stylesheet" href="adminlte/plugins/fontawesome-free/css/all.min.css">
+  <link rel="stylesheet" href="/adminlte/plugins/fontawesome-free/css/all.min.css">
   <!-- AdminLTE CSS -->
-  <link rel="stylesheet" href="adminlte/dist/css/adminlte.min.css">
+  <link rel="stylesheet" href="/adminlte/dist/css/adminlte.min.css">
 </head>
 <body class="hold-transition sidebar-mini">
 <div class="wrapper">
@@ -24,42 +24,26 @@
       </li>
     </ul>
 
-   <!-- Navbar Right Menu -->
-<ul class="navbar-nav ml-auto">
-  <!-- Theme Toggle Button -->
-  <li class="nav-item">
-    <a class="nav-link" href="#" id="theme-toggle">
-      <i class="fas fa-adjust"></i>
-    </a>
-  </li>
-
-  <!-- User Page -->
-  <li class="nav-item">
-    <a class="nav-link" href="user.php">
-      <i class="fas fa-user"></i>
-    </a>
-  </li>
-
-  <!-- Logout -->
-  <li class="nav-item">
-    <a class="nav-link" href="logout.php">
-      <i class="fas fa-sign-out-alt"></i>
-    </a>
-  </li>
-</ul>
-
+    <!-- Right navbar links -->
+    <ul class="navbar-nav ml-auto">
+      <!-- Theme toggle -->
+      <li class="nav-item">
+        <a href="#" id="theme-toggle" class="nav-link" title="Toggle Light/Dark">
+          <i class="fas fa-adjust"></i>
+        </a>
+      </li>
+      <!-- User page -->
+      <li class="nav-item">
+        <a href="user.php" class="nav-link" title="User Page">
+          <i class="fas fa-user"></i>
+        </a>
+      </li>
+      <!-- Logout -->
+      <li class="nav-item">
+        <a href="logout.php" class="nav-link" title="Logout">
+          <i class="fas fa-sign-out-alt"></i>
+        </a>
+      </li>
+    </ul>
   </nav>
   <!-- /.navbar -->
-
-<script>
-  // Simple theme toggle: adds/removes 'dark-mode' class on body
-  document.addEventListener('DOMContentLoaded', () => {
-    const toggle = document.getElementById('theme-toggle');
-    toggle.addEventListener('click', (e) => {
-      e.preventDefault();
-      document.body.classList.toggle('dark-mode');
-    });
-  });
-</script>
-
-
