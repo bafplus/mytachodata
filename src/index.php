@@ -8,14 +8,14 @@ if (!isset($_SESSION['user'])) {
 }
 
 // Include DB connection
-require_once __DIR__ . '/../inc/db.php';
+require_once __DIR__ . '/inc/db.php';
 ?>
 
 <!-- Include reusable header -->
-<?php include __DIR__ . '/../inc/header.php'; ?>
+<?php include __DIR__ . '/inc/header.php'; ?>
 
 <!-- Include sidebar -->
-<?php include __DIR__ . '/../inc/sidebar.php'; ?>
+<?php include __DIR__ . '/inc/sidebar.php'; ?>
 
 <!-- Content Wrapper -->
 <div class="content-wrapper">
@@ -34,7 +34,7 @@ require_once __DIR__ . '/../inc/db.php';
 </div>
 
 <!-- Include footer -->
-<?php include __DIR__ . '/../inc/footer.php'; ?>
+<?php include __DIR__ . '/inc/footer.php'; ?>
 
 
 
