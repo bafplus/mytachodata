@@ -23,6 +23,7 @@ if (!$user) {
 
 // Include header after login check
 require_once __DIR__ . '/inc/header.php';
+require_once __DIR__ . '/inc/sidebar.php';
 
 // Handle form submission
 $success = '';
