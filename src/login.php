@@ -1,6 +1,8 @@
 <?php
-session_start();
 require_once __DIR__ . '/inc/db.php';
+
+// Start session early
+if (!isset($_SESSION)) session_start();
 
 // Redirect to index if already logged in
 if (isset($_SESSION['user_id'])) {
@@ -10,79 +12,67 @@ if (isset($_SESSION['user_id'])) {
 
 $error = '';
 
+// Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = trim($_POST['username'] ?? '');
-    $password = trim($_POST['password'] ?? '');
+    $username = $_POST['username'] ?? '';
+    $password = $_POST['password'] ?? '';
 
     if ($username && $password) {
-        // Fetch user from DB
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE username = :username LIMIT 1");
-        $stmt->execute([':username' => $username]);
+        $stmt = $pdo->prepare("SELECT id, username, password, role, language FROM users WHERE username = ?");
+        $stmt->execute([$username]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        // Check password (plaintext for now, replace with password_hash in future)
-        if ($user && $user['password'] === $password) {
+        if ($user && password_verify($password, $user['password'])) {
+            // Login successful
             $_SESSION['user_id'] = $user['id'];
-            $_SESSION['user'] = $user['username'];
-
+            $_SESSION['username'] = $user['username'];
+            $_SESSION['role'] = $user['role'];
+            $_SESSION['language'] = $user['language'] ?? 'en';
+            
             header('Location: index.php');
             exit;
         } else {
-            $error = 'Invalid username or password.';
+            $error = "Incorrect username or password.";
         }
     } else {
-        $error = 'Please enter username and password.';
+        $error = "Please enter both username and password.";
     }
 }
+
+// Include header after all logic
+require_once __DIR__ . '/inc/header.php';
 ?>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Login - MyTacho</title>
-    <link rel="stylesheet" href="adminlte/plugins/fontawesome-free/css/all.min.css">
-    <link rel="stylesheet" href="adminlte/dist/css/adminlte.min.css">
-</head>
-<body class="hold-transition login-page">
-<div class="login-box">
-    <div class="login-logo">
-        <b>MyTacho</b> Login
+<div class="content-wrapper">
+    <div class="content-header">
+        <div class="container-fluid">
+            <h1 class="m-0">Login</h1>
+        </div>
     </div>
-    <div class="card">
-        <div class="card-body login-card-body">
-            <?php if ($error): ?>
+
+    <div class="content">
+        <div class="container-fluid">
+            <?php if ($error) : ?>
                 <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
             <?php endif; ?>
-            <form action="" method="post">
-                <div class="input-group mb-3">
-                    <input type="text" name="username" class="form-control" placeholder="Username" required>
-                    <div class="input-group-append">
-                        <div class="input-group-text"><span class="fas fa-user"></span></div>
-                    </div>
+
+            <form method="POST">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" class="form-control" required>
                 </div>
-                <div class="input-group mb-3">
-                    <input type="password" name="password" class="form-control" placeholder="Password" required>
-                    <div class="input-group-append">
-                        <div class="input-group-text"><span class="fas fa-lock"></span></div>
-                    </div>
+
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" class="form-control" required>
                 </div>
-                <div class="row">
-                    <div class="col-8"></div>
-                    <div class="col-4">
-                        <button type="submit" class="btn btn-primary btn-block">Login</button>
-                    </div>
-                </div>
+
+                <button type="submit" class="btn btn-primary">Login</button>
             </form>
         </div>
     </div>
 </div>
-<script src="adminlte/plugins/jquery/jquery.min.js"></script>
-<script src="adminlte/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
-<script src="adminlte/dist/js/adminlte.min.js"></script>
-</body>
-</html>
 
-</body>
-</html>
+<?php require_once __DIR__ . '/inc/footer.php'; ?>
+
 
