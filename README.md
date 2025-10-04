@@ -24,7 +24,6 @@ MyTacho is a PHP + MariaDB + AdminLTE web application for managing tachograph da
 - AdminLTE v3 dashboard
 - Upload and parse DDD files using a Go parser
 - Multi-language support
-- Integrated phpMyAdmin for database management
 
 ---
 
@@ -96,8 +95,6 @@ docker run -p 8085:80 -p 3306:3306 \
   - MariaDB initialization & users creation
   - Admin user creation with hashed password
   - Starts Apache in foreground
-
-- **PhpMyAdmin** connects via TCP (`127.0.0.1:3306`) for external access.
 
 - **DDD parser**:
   - Built in Go during Docker build
