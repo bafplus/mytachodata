@@ -2,11 +2,6 @@
 // Include DB connection if session is active
 require_once __DIR__ . '/db.php';
 
-// Start session if not already started
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
 // Default language
 $defaultLang = 'en';
 $lang = $defaultLang;
