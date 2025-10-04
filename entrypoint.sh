@@ -5,6 +5,10 @@ DB_NAME="mytacho"
 DB_USER="mytacho_user"
 DB_PASS="mytacho_pass"
 
+# Ensure MariaDB socket directory exists
+mkdir -p /var/run/mysqld
+chown mysql:mysql /var/run/mysqld
+
 # Initialize MariaDB if not present
 if [ ! -d "/var/lib/mysql/mysql" ]; then
     echo "Initializing MariaDB..."
@@ -12,8 +16,6 @@ if [ ! -d "/var/lib/mysql/mysql" ]; then
 fi
 
 # Start MariaDB in background
-mkdir -p /var/run/mysqld
-chown mysql:mysql /var/run/mysqld
 mariadbd-safe --datadir=/var/lib/mysql &
 
 # Wait until MariaDB is ready
@@ -22,22 +24,20 @@ until mysqladmin ping --silent; do
     sleep 2
 done
 
-# Create database and users if not exists
+# Create database and users
 mysql -u root <<-EOSQL
 CREATE DATABASE IF NOT EXISTS ${DB_NAME};
 
--- Create user for remote connections
+-- Create user for local (socket) and remote connections
+CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';
 CREATE USER IF NOT EXISTS '${DB_USER}'@'%' IDENTIFIED BY '${DB_PASS}';
 
--- Create user for local connections (phpMyAdmin usually connects as localhost)
-CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';
-
-GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'%';
 GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost';
+GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'%';
 FLUSH PRIVILEGES;
 EOSQL
 
-# Create users table and default admin if not exists
+# Create users table and default admin
 ADMIN_HASH=$(php -r "echo password_hash('admin', PASSWORD_DEFAULT);")
 
 mysql -u root <<-EOSQL
