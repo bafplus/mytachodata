@@ -1,95 +1,88 @@
 <?php
-require_once __DIR__ . '/inc/auth.php';   // handles session + login check
-require_once __DIR__ . '/inc/db.php';     // database connection
-require_once __DIR__ . '/inc/lang.php';   // language system
+require_once __DIR__ . '/inc/auth.php';
 
-// Enforce login
-if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
-    exit;
-}
-
-$user_id = $_SESSION['user_id'];
-
-// Fetch user data
-$stmt = $pdo->prepare("SELECT username, password, language FROM users WHERE id = ?");
-$stmt->execute([$user_id]);
-$row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-$username = $row ? htmlspecialchars($row['username']) : '';
-$password = $row ? htmlspecialchars($row['password']) : '';
-$language = $row ? htmlspecialchars($row['language']) : 'en';
-
-// Handle update
+// Handle form submission
+$message = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $new_username = trim($_POST['username']);
-    $new_password = trim($_POST['password']);
-    $new_language = $_POST['language'];
+    $new_username = trim($_POST['username'] ?? '');
+    $new_password = trim($_POST['password'] ?? '');
+    $new_language = $_POST['language'] ?? $_SESSION['language'];
 
-    if (!empty($new_username)) {
-        if (!empty($new_password)) {
-            $hash = password_hash($new_password, PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("UPDATE users SET username = ?, password = ?, language = ? WHERE id = ?");
-            $stmt->execute([$new_username, $hash, $new_language, $user_id]);
+    if ($new_username === '') {
+        $message = $lang['username_required'] ?? 'Username is required';
+    } else {
+        // Update username, password (if provided), and language
+        $sql = "UPDATE users SET username = ?, language = ?".($new_password !== '' ? ", password = ?" : "")." WHERE id = ?";
+        $stmt = $pdo->prepare($sql);
+
+        if ($new_password !== '') {
+            $stmt->execute([$new_username, $new_language, password_hash($new_password, PASSWORD_DEFAULT), $_SESSION['user_id']]);
         } else {
-            $stmt = $pdo->prepare("UPDATE users SET username = ?, language = ? WHERE id = ?");
-            $stmt->execute([$new_username, $new_language, $user_id]);
+            $stmt->execute([$new_username, $new_language, $_SESSION['user_id']]);
         }
 
-        // Update session + language
+        // Update session
         $_SESSION['username'] = $new_username;
         $_SESSION['language'] = $new_language;
+        $lang_file = __DIR__ . "/lang/{$new_language}.php";
+        if (file_exists($lang_file)) {
+            $lang = include $lang_file;
+        }
 
-        header("Location: user.php?success=1");
-        exit;
+        $message = $lang['profile_updated'] ?? 'Profile updated successfully';
     }
 }
 
-include 'header.php';
+// Load current user info for the form
+$current_username = $_SESSION['username'];
+$current_language = $_SESSION['language'];
+
 ?>
 
-<div class="content-wrapper">
-    <section class="content-header">
-        <div class="container-fluid">
-            <h1><?= $lang['user_settings'] ?? 'User Settings' ?></h1>
-        </div>
-    </section>
+<?php include __DIR__ . '/inc/header.php'; ?>
+<?php include __DIR__ . '/inc/sidebar.php'; ?>
 
-    <section class="content">
+<div class="content-wrapper">
+    <div class="content-header">
         <div class="container-fluid">
-            <?php if (isset($_GET['success'])): ?>
-                <div class="alert alert-success"><?= $lang['settings_updated'] ?? 'Settings updated successfully!' ?></div>
+            <h1 class="m-0"><?= htmlspecialchars($lang['user_profile'] ?? 'User Profile') ?></h1>
+        </div>
+    </div>
+
+    <div class="content">
+        <div class="container-fluid">
+            <?php if ($message): ?>
+                <div class="alert alert-info"><?= htmlspecialchars($message) ?></div>
             <?php endif; ?>
 
-            <form method="post">
+            <form method="POST">
                 <div class="form-group">
-                    <label for="username"><?= $lang['username'] ?? 'Username' ?></label>
-                    <input type="text" name="username" id="username" class="form-control" value="<?= $username ?>" required>
+                    <label><?= htmlspecialchars($lang['username'] ?? 'Username') ?></label>
+                    <input type="text" name="username" class="form-control" value="<?= htmlspecialchars($current_username) ?>" required>
                 </div>
 
                 <div class="form-group">
-                    <label for="password"><?= $lang['password'] ?? 'Password' ?></label>
-                    <input type="password" name="password" id="password" class="form-control" placeholder="<?= $lang['leave_blank_password'] ?? 'Leave blank to keep current password' ?>">
+                    <label><?= htmlspecialchars($lang['password'] ?? 'Password') ?> (<?= htmlspecialchars($lang['leave_blank_if_no_change'] ?? 'Leave blank if no change') ?>)</label>
+                    <input type="password" name="password" class="form-control">
                 </div>
 
                 <div class="form-group">
-                    <label for="language"><?= $lang['language'] ?? 'Language' ?></label>
-                    <select name="language" id="language" class="form-control">
+                    <label><?= htmlspecialchars($lang['language'] ?? 'Language') ?></label>
+                    <select name="language" class="form-control">
                         <?php
-                        $lang_files = glob(__DIR__ . '/lang/*.php');
-                        foreach ($lang_files as $file) {
-                            $code = basename($file, '.php');
-                            $selected = ($code === $language) ? 'selected' : '';
-                            echo "<option value=\"$code\" $selected>" . strtoupper($code) . "</option>";
+                        foreach (glob(__DIR__ . "/lang/*.php") as $file) {
+                            $lang_code = basename($file, '.php');
+                            $selected = $lang_code === $current_language ? 'selected' : '';
+                            echo "<option value=\"$lang_code\" $selected>$lang_code</option>";
                         }
                         ?>
                     </select>
                 </div>
 
-                <button type="submit" class="btn btn-primary"><?= $lang['save'] ?? 'Save' ?></button>
+                <button type="submit" class="btn btn-primary"><?= htmlspecialchars($lang['save_changes'] ?? 'Save Changes') ?></button>
             </form>
         </div>
-    </section>
+    </div>
 </div>
 
-<?php include 'footer.php'; ?>
+<?php include __DIR__ . '/inc/footer.php'; ?>
