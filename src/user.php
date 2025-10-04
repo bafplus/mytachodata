@@ -1,16 +1,20 @@
 <?php
-require_once __DIR__ . '/inc/header.php';
 require_once __DIR__ . '/inc/db.php';
+require_once __DIR__ . '/inc/header.php';
 
-// Get current user info
+// Ensure session is started
+if (!isset($_SESSION)) {
+    session_start();
+}
+
 $userId = $_SESSION['user_id'] ?? null;
 
 if (!$userId) {
-    echo "<script>window.location.href='login.php';</script>";
+    header('Location: login.php');
     exit;
 }
 
-// Fetch user info
+// Fetch current user
 $stmt = $pdo->prepare("SELECT id, username, role, language FROM users WHERE id = ?");
 $stmt->execute([$userId]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -20,15 +24,14 @@ if (!$user) {
     exit;
 }
 
-// Handle form submission
 $success = '';
 $error = '';
 
+// Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $newPassword = $_POST['password'] ?? '';
     $newLang = $_POST['language'] ?? 'en';
 
-    // Update password if provided
     if (!empty($newPassword)) {
         $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
         $stmt = $pdo->prepare("UPDATE users SET password = ?, language = ? WHERE id = ?");
@@ -39,7 +42,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = "Failed to update profile.";
         }
     } else {
-        // Only update language
         $stmt = $pdo->prepare("UPDATE users SET language = ? WHERE id = ?");
         if ($stmt->execute([$newLang, $userId])) {
             $success = "Language updated successfully!";
@@ -50,15 +52,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Load available languages from /lang
-$langFiles = glob(__DIR__ . '/../lang/*.php');
+// Load languages from /lang/
+$langFiles = glob(__DIR__ . '/lang/*.php');
 $languages = array_map(fn($f) => basename($f, '.php'), $langFiles);
-
-// Fallback if no language files found
-if (empty($languages)) {
-    $languages = ['en'];
-}
-
 $userLang = $user['language'] ?? 'en';
 ?>
 
@@ -71,21 +67,21 @@ $userLang = $user['language'] ?? 'en';
 
     <div class="content">
         <div class="container-fluid">
-            <?php if ($success) : ?>
+            <?php if ($success): ?>
                 <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
             <?php endif; ?>
-            <?php if ($error) : ?>
+            <?php if ($error): ?>
                 <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
             <?php endif; ?>
 
             <form method="POST">
                 <div class="form-group">
                     <label for="username">Username</label>
-                    <input type="text" 
-                           id="username" 
-                           name="username" 
-                           class="form-control" 
-                           value="<?= htmlspecialchars($user['username']) ?>" 
+                    <input type="text"
+                           id="username"
+                           name="username"
+                           class="form-control"
+                           value="<?= htmlspecialchars($user['username']) ?>"
                            <?= $user['role'] !== 'admin' ? 'readonly' : '' ?>>
                 </div>
 
@@ -97,7 +93,7 @@ $userLang = $user['language'] ?? 'en';
                 <div class="form-group">
                     <label for="language">Language</label>
                     <select id="language" name="language" class="form-control">
-                        <?php foreach ($languages as $lang) : ?>
+                        <?php foreach ($languages as $lang): ?>
                             <option value="<?= $lang ?>" <?= $userLang === $lang ? 'selected' : '' ?>><?= strtoupper($lang) ?></option>
                         <?php endforeach; ?>
                     </select>
@@ -110,3 +106,4 @@ $userLang = $user['language'] ?? 'en';
 </div>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
+
