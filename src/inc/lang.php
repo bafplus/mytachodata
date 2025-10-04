@@ -35,4 +35,3 @@ function getAvailableLanguages() {
     }
     return $langs;
 }
-
