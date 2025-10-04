@@ -39,8 +39,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Include header after all logic
-require_once __DIR__ . '/inc/header.php';
 ?>
 
 <div class="content-wrapper">
