@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     role VARCHAR(20) DEFAULT 'user',
-    language VARCHAR(5) DEFAULT 'en'
+    language VARCHAR(5) DEFAULT 'en',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
