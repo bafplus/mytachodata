@@ -56,6 +56,18 @@ RUN wget https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.zi
     rm /tmp/pma.zip
 RUN chown -R www-data:www-data /var/www/html/phpmyadmin
 
+# Configure phpMyAdmin to use TCP instead of UNIX socket
+RUN cat << 'EOF' > /var/www/html/phpmyadmin/config.inc.php
+<?php
+/* Authentication type */
+$cfg['Servers'][1]['auth_type'] = 'cookie';
+
+/* Force TCP instead of socket */
+$cfg['Servers'][1]['host'] = '127.0.0.1';
+$cfg['Servers'][1]['port'] = '3306';
+$cfg['Servers'][1]['connect_type'] = 'tcp';
+EOF
+
 # Configure Apache for phpMyAdmin using a proper heredoc
 RUN cat << 'EOF' > /etc/apache2/conf-available/phpmyadmin.conf
 <Directory "/var/www/html/phpmyadmin">
