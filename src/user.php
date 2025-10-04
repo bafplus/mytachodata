@@ -1,61 +1,51 @@
 <?php
-require_once __DIR__ . '/inc/header.php';
 require_once __DIR__ . '/inc/db.php';
 
-// Get current user info from session
-$username = $_SESSION['user'] ?? null;
-
-if (!$username) {
+// Session and login check
+if (!isset($_SESSION)) session_start();
+$userId = $_SESSION['user_id'] ?? null;
+if (!$userId) {
     header('Location: login.php');
     exit;
 }
 
-// Fetch user info from DB by username
-$stmt = $pdo->prepare("SELECT id, username, role, language FROM users WHERE username = ?");
-$stmt->execute([$username]);
+// Fetch user info
+$stmt = $pdo->prepare("SELECT id, username, role, language FROM users WHERE id = ?");
+$stmt->execute([$userId]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
 if (!$user) {
     echo "User not found.";
     exit;
 }
-
-$userId = $user['id']; // store numeric ID for updates
 
 // Handle form submission
 $success = '';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $newUsername = $_POST['username'] ?? $user['username'];
     $newPassword = $_POST['password'] ?? '';
-    $newLang = $_POST['language'] ?? $user['language'];
+    $newLang = $_POST['language'] ?? 'en';
 
-    // Only admin can change username
-    if ($user['role'] !== 'admin') {
-        $newUsername = $user['username'];
+    if (!empty($newPassword)) {
+        $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
+        $stmt = $pdo->prepare("UPDATE users SET password = ?, language = ? WHERE id = ?");
+        $stmt->execute([$hashedPassword, $newLang, $userId]);
+    } else {
+        $stmt = $pdo->prepare("UPDATE users SET language = ? WHERE id = ?");
+        $stmt->execute([$newLang, $userId]);
     }
 
-    try {
-        if (!empty($newPassword)) {
-            $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("UPDATE users SET username = ?, password = ?, language = ? WHERE id = ?");
-            $stmt->execute([$newUsername, $hashedPassword, $newLang, $userId]);
-        } else {
-            $stmt = $pdo->prepare("UPDATE users SET username = ?, language = ? WHERE id = ?");
-            $stmt->execute([$newUsername, $newLang, $userId]);
-        }
-        $success = "Profile updated successfully!";
-        $user['username'] = $newUsername;
-        $user['language'] = $newLang;
-    } catch (Exception $e) {
-        $error = "Failed to update profile: " . $e->getMessage();
-    }
+    $success = "Profile updated successfully!";
+    $user['language'] = $newLang;
 }
 
-// Available languages from /inc/lang/
+// Load available languages
 $langFiles = glob(__DIR__ . '/inc/lang/*.php');
 $languages = array_map(fn($f) => basename($f, '.php'), $langFiles);
+
+// Include header/sidebar/footer after all logic
+require_once __DIR__ . '/inc/header.php';
+require_once __DIR__ . '/inc/sidebar.php';
 ?>
 
 <div class="content-wrapper">
@@ -77,11 +67,11 @@ $languages = array_map(fn($f) => basename($f, '.php'), $langFiles);
             <form method="POST">
                 <div class="form-group">
                     <label for="username">Username</label>
-                    <input type="text"
-                           id="username"
-                           name="username"
-                           class="form-control"
-                           value="<?= htmlspecialchars($user['username']) ?>"
+                    <input type="text" 
+                           id="username" 
+                           name="username" 
+                           class="form-control" 
+                           value="<?= htmlspecialchars($user['username']) ?>" 
                            <?= $user['role'] !== 'admin' ? 'readonly' : '' ?>>
                 </div>
 
