@@ -12,7 +12,9 @@ if [ ! -d "/var/lib/mysql/mysql" ]; then
 fi
 
 # Start MariaDB in background
-mysqld_safe --datadir=/var/lib/mysql &
+mkdir -p /var/run/mysqld
+chown mysql:mysql /var/run/mysqld
+mariadbd_safe --datadir=/var/lib/mysql &
 
 # Wait until MariaDB is ready
 until mysqladmin ping --silent; do
