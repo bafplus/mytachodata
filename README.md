@@ -156,3 +156,14 @@ docker run -p 8085:80 -p 3306:3306 \
 
 ---
 
+## Todo
+
+  - Set languagestrings on all pages, header, sidebar and footer so languagefiles reflect
+  - enable user registration with email as username
+  - set admin only setting to disable/enable user registration (admin only), registration is disabled by default
+  - create simpel usermanagement for admin
+  - Implement .ddd import
+  - create all type of reporting of ddd data
+  - enable to make usernotes on violations
+  - enable autobuild on git updates (versioning)
+  - create dockerfile for docker-compose incl binding html folder and db for persistant data
