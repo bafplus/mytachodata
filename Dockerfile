@@ -57,21 +57,22 @@ RUN wget https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.zi
     rm /tmp/pma.zip
 RUN chown -R www-data:www-data /var/www/html/phpmyadmin
 
-# Configure phpMyAdmin to use TCP instead of UNIX socket
+# Configure phpMyAdmin to use UNIX socket
 RUN cat << 'EOF' > /var/www/html/phpmyadmin/config.inc.php
 <?php
 $i = 0;
 $i++;
-$cfg['blowfish_secret'] = 'MyTachoSecret';
-$cfg['Servers'][$i]['host'] = '127.0.0.1';
-$cfg['Servers'][$i]['port'] = '3306';
-$cfg['Servers'][$i]['connect_type'] = 'tcp';
+$cfg['blowfish_secret'] = 'MyTachoSecret'; // random secret
+$cfg['Servers'][$i]['host'] = 'localhost';
+$cfg['Servers'][$i]['connect_type'] = 'socket';
+$cfg['Servers'][$i]['socket'] = '/var/run/mysqld/mysqld.sock';
 $cfg['Servers'][$i]['auth_type'] = 'cookie';
 $cfg['Servers'][$i]['user'] = 'mytacho_user';
 $cfg['Servers'][$i]['password'] = 'mytacho_pass';
 $cfg['UploadDir'] = '';
 $cfg['SaveDir'] = '';
 EOF
+
 
 # Configure Apache for phpMyAdmin
 RUN cat << 'EOF' > /etc/apache2/conf-available/phpmyadmin.conf
