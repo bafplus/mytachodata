@@ -62,11 +62,22 @@ RUN cat << 'EOF' > /var/www/html/phpmyadmin/config.inc.php
 /* Authentication type */
 $cfg['Servers'][1]['auth_type'] = 'cookie';
 
-/* Force TCP instead of socket */
-$cfg['Servers'][1]['host'] = '127.0.0.1';
-$cfg['Servers'][1]['port'] = '3306';
-$cfg['Servers'][1]['connect_type'] = 'tcp';
+# Configure phpMyAdmin to use TCP (127.0.0.1) instead of socket
+RUN cat << 'EOF' > /var/www/html/phpmyadmin/config.inc.php
+<?php
+$i = 0;
+$i++;
+$cfg['blowfish_secret'] = 'MyTachoSecret'; // you can set a random secret
+$cfg['Servers'][$i]['host'] = '127.0.0.1';
+$cfg['Servers'][$i]['port'] = '3306';
+$cfg['Servers'][$i]['connect_type'] = 'tcp';
+$cfg['Servers'][$i]['auth_type'] = 'cookie';
+$cfg['Servers'][$i]['user'] = 'mytacho_user';
+$cfg['Servers'][$i]['password'] = 'mytacho_pass';
+$cfg['UploadDir'] = '';
+$cfg['SaveDir'] = '';
 EOF
+
 
 # Configure Apache for phpMyAdmin using a proper heredoc
 RUN cat << 'EOF' > /etc/apache2/conf-available/phpmyadmin.conf
