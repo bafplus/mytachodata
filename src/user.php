@@ -1,9 +1,10 @@
 <?php
+require_once __DIR__ . '/inc/header.php';
 require_once __DIR__ . '/inc/db.php';
 
-// Session and login check
-if (!isset($_SESSION)) session_start();
+// Get current user info
 $userId = $_SESSION['user_id'] ?? null;
+
 if (!$userId) {
     header('Location: login.php');
     exit;
@@ -13,6 +14,7 @@ if (!$userId) {
 $stmt = $pdo->prepare("SELECT id, username, role, language FROM users WHERE id = ?");
 $stmt->execute([$userId]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
 if (!$user) {
     echo "User not found.";
     exit;
@@ -26,26 +28,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $newPassword = $_POST['password'] ?? '';
     $newLang = $_POST['language'] ?? 'en';
 
+    // Update password if provided
     if (!empty($newPassword)) {
         $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
         $stmt = $pdo->prepare("UPDATE users SET password = ?, language = ? WHERE id = ?");
-        $stmt->execute([$hashedPassword, $newLang, $userId]);
+        if ($stmt->execute([$hashedPassword, $newLang, $userId])) {
+            $success = "Profile updated successfully!";
+            $user['language'] = $newLang;
+        } else {
+            $error = "Failed to update profile.";
+        }
     } else {
+        // Only update language
         $stmt = $pdo->prepare("UPDATE users SET language = ? WHERE id = ?");
-        $stmt->execute([$newLang, $userId]);
+        if ($stmt->execute([$newLang, $userId])) {
+            $success = "Language updated successfully!";
+            $user['language'] = $newLang;
+        } else {
+            $error = "Failed to update language.";
+        }
     }
-
-    $success = "Profile updated successfully!";
-    $user['language'] = $newLang;
 }
 
 // Load available languages
 $langFiles = glob(__DIR__ . '/inc/lang/*.php');
 $languages = array_map(fn($f) => basename($f, '.php'), $langFiles);
-
-// Include header/sidebar/footer after all logic
-require_once __DIR__ . '/inc/header.php';
-require_once __DIR__ . '/inc/sidebar.php';
+$userLang = $user['language'] ?? 'en';
 ?>
 
 <div class="content-wrapper">
@@ -84,7 +92,7 @@ require_once __DIR__ . '/inc/sidebar.php';
                     <label for="language">Language</label>
                     <select id="language" name="language" class="form-control">
                         <?php foreach ($languages as $lang) : ?>
-                            <option value="<?= $lang ?>" <?= $user['language'] === $lang ? 'selected' : '' ?>><?= strtoupper($lang) ?></option>
+                            <option value="<?= $lang ?>" <?= $userLang === $lang ? 'selected' : '' ?>><?= strtoupper($lang) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
