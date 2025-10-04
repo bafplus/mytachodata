@@ -21,8 +21,8 @@ if (!$user) {
 }
 
 // Load available languages
-$langDir = __DIR__ . '/lang';
-$langFiles = glob($langDir . '/*.php');
+$langDir = __DIR__ . '/../lang';
+$langFiles = glob($langDir . '/../*.php');
 $languages = [];
 foreach ($langFiles as $file) {
     $langCode = basename($file, '.php');
