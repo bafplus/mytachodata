@@ -6,11 +6,6 @@ require_once __DIR__ . '/inc/lang.php';
 // Get current user info
 $userId = $_SESSION['user_id'] ?? null;
 
-if (!$userId) {
-    header('Location: login.php');
-    exit;
-}
-
 $stmt = $pdo->prepare("SELECT id, username, role, language FROM users WHERE id = ?");
 $stmt->execute([$userId]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
