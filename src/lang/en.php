@@ -1,9 +1,15 @@
 <?php
-return [
+$lang_arr = [
+    // General
     "dashboard" => "Dashboard",
     "upload" => "Upload DDD",
     "logout" => "Logout",
-    "user_page" => "User Page",
-    "theme_light" => "Light Theme",
-    "theme_dark" => "Dark Theme",
+    "save" => "Save",
+
+    // User Settings
+    "user_settings" => "User Settings",
+    "profile" => "Profile",
+    "username" => "Username",
+    "language" => "Language",
 ];
+
