@@ -14,7 +14,7 @@ fi
 # Start MariaDB in background
 mkdir -p /var/run/mysqld
 chown mysql:mysql /var/run/mysqld
-mysqld_safe --datadir=/var/lib/mysql &
+mariadbd-safe --datadir=/var/lib/mysql &
 
 # Wait until MariaDB is ready
 until mysqladmin ping --silent; do
