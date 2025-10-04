@@ -21,7 +21,7 @@ if (!$user) {
 }
 
 // Load available languages
-$langDir = __DIR__ . '/inc/lang';
+$langDir = __DIR__ . '/lang';
 $langFiles = glob($langDir . '/*.php');
 $languages = [];
 foreach ($langFiles as $file) {
