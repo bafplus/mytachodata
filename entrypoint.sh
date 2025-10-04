@@ -27,11 +27,8 @@ done
 # Create database and users
 mysql -u root <<-EOSQL
 CREATE DATABASE IF NOT EXISTS ${DB_NAME};
-
--- Create user for local (socket) and remote connections
 CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';
 CREATE USER IF NOT EXISTS '${DB_USER}'@'%' IDENTIFIED BY '${DB_PASS}';
-
 GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost';
 GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'%';
 FLUSH PRIVILEGES;
@@ -42,7 +39,6 @@ ADMIN_HASH=$(php -r "echo password_hash('admin', PASSWORD_DEFAULT);")
 
 mysql -u root <<-EOSQL
 USE ${DB_NAME};
-
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
