@@ -29,7 +29,6 @@ FLUSH PRIVILEGES;
 EOSQL
 
 # Create users table and default admin
-DB_PASS_HASH=$(php -r "echo password_hash('admin', PASSWORD_BCRYPT);")
 mysql -u root <<-EOSQL
 USE ${DB_NAME};
 
@@ -43,7 +42,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 INSERT INTO users (username, password, role, language)
-SELECT 'admin', '${DB_PASS_HASH}', 'admin', 'en'
+SELECT 'admin', 'admin', 'admin', 'en'
 WHERE NOT EXISTS (SELECT 1 FROM users WHERE username='admin');
 EOSQL
 
