@@ -8,7 +8,7 @@ DB_PASS="mytacho_pass"
 # Initialize MariaDB if not present
 if [ ! -d "/var/lib/mysql/mysql" ]; then
     echo "Initializing MariaDB..."
-    mysql_install_db --user=mysql --datadir=/var/lib/mysql > /dev/null
+    mysqld --initialize-insecure --user=mysql
 fi
 
 # Start MariaDB in background
@@ -28,7 +28,7 @@ GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'%';
 FLUSH PRIVILEGES;
 EOSQL
 
-# Create users table and default admin
+# Create users table and default admin if not exists
 mysql -u root <<-EOSQL
 USE ${DB_NAME};
 
