@@ -1,16 +1,16 @@
 <?php
-// Include DB and start session
+require_once __DIR__ . '/inc/header.php';
 require_once __DIR__ . '/inc/db.php';
-if (!isset($_SESSION)) session_start();
 
-// Redirect to login if not logged in
-if (!isset($_SESSION['user_id'])) {
-    header('Location: login.php');
+// Get current user info
+$userId = $_SESSION['user_id'] ?? null;
+
+if (!$userId) {
+    echo "<script>window.location.href='login.php';</script>";
     exit;
 }
 
-// Fetch current user info
-$userId = $_SESSION['user_id'];
+// Fetch user info
 $stmt = $pdo->prepare("SELECT id, username, role, language FROM users WHERE id = ?");
 $stmt->execute([$userId]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -20,50 +20,46 @@ if (!$user) {
     exit;
 }
 
-// Load available languages
-$langDir = __DIR__ . '/../lang';
-$langFiles = glob($langDir . '/../*.php');
-$languages = [];
-foreach ($langFiles as $file) {
-    $langCode = basename($file, '.php');
-    $languages[$langCode] = strtoupper($langCode);
-}
-
-// Fallback to English if missing
-$userLang = $user['language'] ?? 'en';
-if (!isset($languages[$userLang])) {
-    $userLang = 'en';
-}
-
 // Handle form submission
 $success = '';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $newPassword = $_POST['password'] ?? '';
-    $newLang = $_POST['language'] ?? $userLang;
+    $newLang = $_POST['language'] ?? 'en';
 
-    try {
-        if (!empty($newPassword)) {
-            $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("UPDATE users SET password = ?, language = ? WHERE id = ?");
-            $stmt->execute([$hashedPassword, $newLang, $userId]);
+    // Update password if provided
+    if (!empty($newPassword)) {
+        $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
+        $stmt = $pdo->prepare("UPDATE users SET password = ?, language = ? WHERE id = ?");
+        if ($stmt->execute([$hashedPassword, $newLang, $userId])) {
+            $success = "Profile updated successfully!";
+            $user['language'] = $newLang;
         } else {
-            $stmt = $pdo->prepare("UPDATE users SET language = ? WHERE id = ?");
-            $stmt->execute([$newLang, $userId]);
+            $error = "Failed to update profile.";
         }
-
-        $success = "Profile updated successfully!";
-        $user['language'] = $newLang;
-        $_SESSION['language'] = $newLang;
-    } catch (Exception $e) {
-        $error = "Failed to update profile: " . $e->getMessage();
+    } else {
+        // Only update language
+        $stmt = $pdo->prepare("UPDATE users SET language = ? WHERE id = ?");
+        if ($stmt->execute([$newLang, $userId])) {
+            $success = "Language updated successfully!";
+            $user['language'] = $newLang;
+        } else {
+            $error = "Failed to update language.";
+        }
     }
 }
 
-// Include header AFTER session and DB logic
-require_once __DIR__ . '/inc/header.php';
-require_once __DIR__ . '/inc/sidebar.php';
+// Load available languages from /lang
+$langFiles = glob(__DIR__ . '/../lang/*.php');
+$languages = array_map(fn($f) => basename($f, '.php'), $langFiles);
+
+// Fallback if no language files found
+if (empty($languages)) {
+    $languages = ['en'];
+}
+
+$userLang = $user['language'] ?? 'en';
 ?>
 
 <div class="content-wrapper">
@@ -75,10 +71,10 @@ require_once __DIR__ . '/inc/sidebar.php';
 
     <div class="content">
         <div class="container-fluid">
-            <?php if ($success): ?>
+            <?php if ($success) : ?>
                 <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
             <?php endif; ?>
-            <?php if ($error): ?>
+            <?php if ($error) : ?>
                 <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
             <?php endif; ?>
 
@@ -101,8 +97,8 @@ require_once __DIR__ . '/inc/sidebar.php';
                 <div class="form-group">
                     <label for="language">Language</label>
                     <select id="language" name="language" class="form-control">
-                        <?php foreach ($languages as $code => $label): ?>
-                            <option value="<?= $code ?>" <?= $userLang === $code ? 'selected' : '' ?>><?= $label ?></option>
+                        <?php foreach ($languages as $lang) : ?>
+                            <option value="<?= $lang ?>" <?= $userLang === $lang ? 'selected' : '' ?>><?= strtoupper($lang) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
