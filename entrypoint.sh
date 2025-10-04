@@ -16,7 +16,7 @@ if [ ! -d "/var/lib/mysql/mysql" ]; then
 fi
 
 # Start MariaDB in background, listening on all interfaces
-mysqld_safe --datadir=/var/lib/mysql --bind-address=0.0.0.0 &
+mariadbd-safe --datadir=/var/lib/mysql --bind-address=0.0.0.0 &
 
 
 # Wait until MariaDB is ready
