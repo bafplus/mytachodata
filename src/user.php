@@ -1,10 +1,11 @@
 <?php
-require_once __DIR__ . '/inc/header.php';
 require_once __DIR__ . '/inc/db.php';
+
+// Start session
+if (!isset($_SESSION)) session_start();
 
 // Get current user info
 $userId = $_SESSION['user_id'] ?? null;
-
 if (!$userId) {
     header('Location: login.php');
     exit;
@@ -19,6 +20,9 @@ if (!$user) {
     echo "User not found.";
     exit;
 }
+
+// Include header after login check
+require_once __DIR__ . '/inc/header.php';
 
 // Handle form submission
 $success = '';
