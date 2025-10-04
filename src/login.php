@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/inc/header.php'; // <-- include header for styling
 require_once __DIR__ . '/inc/db.php';
 
 // Start session early
