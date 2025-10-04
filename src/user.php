@@ -1,12 +1,12 @@
 <?php
 require_once __DIR__ . '/inc/db.php';
-require_once __DIR__ . '/inc/header.php';
 
-// Ensure session is started
+// Start session before any output
 if (!isset($_SESSION)) {
     session_start();
 }
 
+// Check if user is logged in
 $userId = $_SESSION['user_id'] ?? null;
 
 if (!$userId) {
@@ -14,7 +14,7 @@ if (!$userId) {
     exit;
 }
 
-// Fetch current user
+// Fetch user info
 $stmt = $pdo->prepare("SELECT id, username, role, language FROM users WHERE id = ?");
 $stmt->execute([$userId]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -24,10 +24,10 @@ if (!$user) {
     exit;
 }
 
+// Handle form submission
 $success = '';
 $error = '';
 
-// Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $newPassword = $_POST['password'] ?? '';
     $newLang = $_POST['language'] ?? 'en';
@@ -52,11 +52,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Load languages from /lang/
-$langFiles = glob(__DIR__ . '/lang/*.php');
+// Load available languages
+$langFiles = glob(__DIR__ . '/lang/*.php'); // <-- adjusted path to root/lang
 $languages = array_map(fn($f) => basename($f, '.php'), $langFiles);
 $userLang = $user['language'] ?? 'en';
+
+// Now that logic is done, output header
+require_once __DIR__ . '/inc/header.php';
 ?>
+
 
 <div class="content-wrapper">
     <div class="content-header">
