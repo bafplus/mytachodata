@@ -48,6 +48,7 @@ RUN wget https://github.com/ColorlibHQ/AdminLTE/archive/refs/tags/v3.2.0.zip -O 
     mv /var/www/html/AdminLTE-3.2.0 /var/www/html/adminlte && \
     rm /tmp/adminlte.zip && \
     chown -R www-data:www-data /var/www/html/adminlte
+
 # ------------------------
 # phpMyAdmin
 # ------------------------
@@ -59,15 +60,9 @@ RUN chown -R www-data:www-data /var/www/html/phpmyadmin
 # Configure phpMyAdmin to use TCP instead of UNIX socket
 RUN cat << 'EOF' > /var/www/html/phpmyadmin/config.inc.php
 <?php
-/* Authentication type */
-$cfg['Servers'][1]['auth_type'] = 'cookie';
-
-# Configure phpMyAdmin to use TCP (127.0.0.1) instead of socket
-RUN cat << 'EOF' > /var/www/html/phpmyadmin/config.inc.php
-<?php
 $i = 0;
 $i++;
-$cfg['blowfish_secret'] = 'MyTachoSecret'; // you can set a random secret
+$cfg['blowfish_secret'] = 'MyTachoSecret';
 $cfg['Servers'][$i]['host'] = '127.0.0.1';
 $cfg['Servers'][$i]['port'] = '3306';
 $cfg['Servers'][$i]['connect_type'] = 'tcp';
@@ -78,8 +73,7 @@ $cfg['UploadDir'] = '';
 $cfg['SaveDir'] = '';
 EOF
 
-
-# Configure Apache for phpMyAdmin using a proper heredoc
+# Configure Apache for phpMyAdmin
 RUN cat << 'EOF' > /etc/apache2/conf-available/phpmyadmin.conf
 <Directory "/var/www/html/phpmyadmin">
     Options Indexes FollowSymLinks
@@ -87,7 +81,6 @@ RUN cat << 'EOF' > /etc/apache2/conf-available/phpmyadmin.conf
     Require all granted
 </Directory>
 EOF
-
 RUN a2enconf phpmyadmin
 
 # Entrypoint
