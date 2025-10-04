@@ -42,8 +42,8 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO users (username, password, role)
-SELECT 'admin', '${DB_PASS_HASH}', 'admin'
+INSERT INTO users (username, password, role, language)
+SELECT 'admin', '${DB_PASS_HASH}', 'admin', 'en'
 WHERE NOT EXISTS (SELECT 1 FROM users WHERE username='admin');
 EOSQL
 
