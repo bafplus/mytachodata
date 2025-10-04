@@ -1,0 +1,9 @@
+<?php
+return [
+    "dashboard" => "Dashboard",
+    "upload" => "Upload DDD",
+    "logout" => "Uitloggen",
+    "user_page" => "Gebruiker",
+    "theme_light" => "Licht Thema",
+    "theme_dark" => "Donker Thema",
+];
