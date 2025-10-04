@@ -1,21 +1,40 @@
 <?php
-// inc/lang.php
-session_start();
+// lang.php
+// Manage language selection for the user
 
-// Language files directory
-$LANG_DIR = __DIR__ . '/../lang';
+// Determine selected language
+$availableLanguages = [];
+$langDir = __DIR__ . '/../lang';
+if (is_dir($langDir)) {
+    foreach (glob($langDir . '/*.php') as $file) {
+        $availableLanguages[] = basename($file, '.php');
+    }
+}
 
 // Default language
-$defaultLang = 'en';
+$lang = 'en';
 
-// Determine active language (session > DB > default)
-$lang = $_SESSION['lang'] ?? $defaultLang;
-
-// Load language file (fallback to default if missing)
-$langFile = "$LANG_DIR/$lang.php";
-if (!file_exists($langFile)) {
-    $langFile = "$LANG_DIR/$defaultLang.php";
+// If user has a language set in session, use that
+if (isset($_SESSION['user_lang']) && in_array($_SESSION['user_lang'], $availableLanguages)) {
+    $lang = $_SESSION['user_lang'];
 }
-require_once $langFile;
 
-// $lang_arr contains the translations
+// If user is logged in, override with stored user language
+if (isset($_SESSION['user_id'])) {
+    $stmt = $pdo->prepare("SELECT language FROM users WHERE id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $dbLang = $stmt->fetchColumn();
+    if ($dbLang && in_array($dbLang, $availableLanguages)) {
+        $lang = $dbLang;
+    }
+}
+
+// Load language file
+$langFile = $langDir . '/' . $lang . '.php';
+if (file_exists($langFile)) {
+    include $langFile;
+}
+
+// $translations array should now be available for usage
+// Example: echo $translations['welcome'];
+
