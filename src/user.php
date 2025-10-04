@@ -59,6 +59,7 @@ $userLang = $user['language'] ?? 'en';
 
 // Now that logic is done, output header
 require_once __DIR__ . '/inc/header.php';
+require_once __DIR__ . '/inc/sidebar.php';
 ?>
 
 
