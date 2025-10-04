@@ -28,7 +28,10 @@ GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'%';
 FLUSH PRIVILEGES;
 EOSQL
 
-# Create users table and default admin
+# Create users table and default admin if not exists
+# Default admin password is 'admin' (hashed)
+ADMIN_HASH=$(php -r "echo password_hash('admin', PASSWORD_DEFAULT);")
+
 mysql -u root <<-EOSQL
 USE ${DB_NAME};
 
@@ -42,7 +45,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 INSERT INTO users (username, password, role, language)
-SELECT 'admin', 'admin', 'admin', 'en'
+SELECT 'admin', '${ADMIN_HASH}', 'admin', 'en'
 WHERE NOT EXISTS (SELECT 1 FROM users WHERE username='admin');
 EOSQL
 
