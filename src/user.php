@@ -2,129 +2,106 @@
 require_once __DIR__ . '/inc/db.php';
 require_once __DIR__ . '/inc/lang.php';
 
-// Redirect if not logged in
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
 }
 
-// Fetch user data
-$stmt = $pdo->prepare("SELECT id, username, role, language FROM users WHERE id = ?");
-$stmt->execute([$_SESSION['user_id']]);
+$user_id = $_SESSION['user_id'];
+$stmt = $pdo->prepare("SELECT username, password, language, role FROM users WHERE id = ?");
+$stmt->execute([$user_id]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$user) {
-    die("User not found.");
+    echo "User not found.";
+    exit;
 }
 
-// Handle form submission
-$errors = [];
-$success = '';
+$message = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Admin can change username
-    if ($_SESSION['role'] === 'admin' && isset($_POST['username'])) {
-        $newUsername = trim($_POST['username']);
-        if ($newUsername !== '') {
-            $stmt = $pdo->prepare("UPDATE users SET username = ? WHERE id = ?");
-            $stmt->execute([$newUsername, $user['id']]);
-            $_SESSION['user'] = $newUsername;
-            $user['username'] = $newUsername;
-            $success = "Username updated.";
-        } else {
-            $errors[] = "Username cannot be empty.";
-        }
+    $new_username = $_POST['username'] ?? $user['username'];
+    $new_language = $_POST['language'] ?? $user['language'];
+    $new_password = $_POST['password'] ?? '';
+    $new_password_confirm = $_POST['password_confirm'] ?? '';
+
+    // only admin can change username
+    if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+        $new_username = $user['username'];
     }
 
-    // Change password
-    if (!empty($_POST['password'])) {
-        $password = $_POST['password'];
-        $passwordHash = password_hash($password, PASSWORD_DEFAULT);
-        $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
-        $stmt->execute([$passwordHash, $user['id']]);
-        $success = $success ? $success . " Password updated." : "Password updated.";
+    if (!empty($new_password)) {
+        if ($new_password === $new_password_confirm) {
+            $hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
+            $stmt = $pdo->prepare("UPDATE users SET username = ?, password = ?, language = ? WHERE id = ?");
+            $stmt->execute([$new_username, $hashed_password, $new_language, $user_id]);
+            $message = $lang['update_success'];
+        } else {
+            $message = $lang['password_mismatch'];
+        }
+    } else {
+        $stmt = $pdo->prepare("UPDATE users SET username = ?, language = ? WHERE id = ?");
+        $stmt->execute([$new_username, $new_language, $user_id]);
+        $message = $lang['update_success'];
     }
 
-    // Change language
-    if (!empty($_POST['language'])) {
-        $lang = $_POST['language'];
-        // Optionally: check if file exists
-        if (file_exists(__DIR__ . "/lang/$lang.php")) {
-            $stmt = $pdo->prepare("UPDATE users SET language = ? WHERE id = ?");
-            $stmt->execute([$lang, $user['id']]);
-            $user['language'] = $lang;
-            $_SESSION['language'] = $lang;
-            $success = $success ? $success . " Language updated." : "Language updated.";
-        } else {
-            $errors[] = "Invalid language selected.";
-        }
-    }
+    // refresh session values
+    $_SESSION['user'] = $new_username;
+    $_SESSION['language'] = $new_language;
 }
 
-// Load available languages
-$langFiles = glob(__DIR__ . '/lang/*.php');
-$languages = array_map(function($file) {
-    return basename($file, '.php');
-}, $langFiles);
-
+include __DIR__ . '/header.php';
+include __DIR__ . '/sidebar.php';
 ?>
 
-<?php include __DIR__ . '/inc/header.php'; ?>
-<?php include __DIR__ . '/inc/sidebar.php'; ?>
-
+<!-- Content Wrapper -->
 <div class="content-wrapper">
-  <div class="content-header">
-    <div class="container-fluid">
-      <h1 class="m-0">User Settings</h1>
-    </div>
-  </div>
+  <section class="content-header">
+    <h1><?= $lang['user_settings'] ?></h1>
+  </section>
 
-  <div class="content">
+  <section class="content">
     <div class="container-fluid">
-      <?php if ($errors): ?>
-        <div class="alert alert-danger">
-          <?php foreach ($errors as $e) echo htmlspecialchars($e) . "<br>"; ?>
-        </div>
-      <?php endif; ?>
-      <?php if ($success): ?>
-        <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
+      <?php if ($message): ?>
+        <div class="alert alert-info"><?= htmlspecialchars($message) ?></div>
       <?php endif; ?>
 
-      <form method="POST">
+      <form method="post">
         <div class="form-group">
-          <label for="username">Username</label>
-          <input 
-            type="text" 
-            class="form-control" 
-            id="username" 
-            name="username" 
-            value="<?= htmlspecialchars($user['username']) ?>" 
-            <?= $_SESSION['role'] !== 'admin' ? 'readonly' : '' ?>
-          >
-          <?php if ($_SESSION['role'] !== 'admin'): ?>
-            <small class="form-text text-muted">Only admin can change the username.</small>
-          <?php endif; ?>
+          <label><?= $lang['username'] ?></label>
+          <input type="text" name="username" class="form-control"
+                 value="<?= htmlspecialchars($user['username'] ?? '') ?>"
+                 <?= (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') ? '' : 'readonly' ?>>
         </div>
 
         <div class="form-group">
-          <label for="password">New Password</label>
-          <input type="password" class="form-control" id="password" name="password">
-          <small class="form-text text-muted">Leave blank to keep current password.</small>
-        </div>
-
-        <div class="form-group">
-          <label for="language">Language</label>
-          <select name="language" id="language" class="form-control">
-            <?php foreach ($languages as $lang): ?>
-              <option value="<?= htmlspecialchars($lang) ?>" <?= $user['language'] === $lang ? 'selected' : '' ?>><?= htmlspecialchars(strtoupper($lang)) ?></option>
-            <?php endforeach; ?>
+          <label><?= $lang['language'] ?></label>
+          <select name="language" class="form-control">
+            <?php
+            $lang_files = glob(__DIR__ . '/lang/*.php');
+            foreach ($lang_files as $file) {
+                $code = basename($file, '.php');
+                $selected = ($code === ($user['language'] ?? 'en')) ? 'selected' : '';
+                echo "<option value=\"$code\" $selected>$code</option>";
+            }
+            ?>
           </select>
         </div>
 
-        <button type="submit" class="btn btn-primary">Save Changes</button>
+        <div class="form-group">
+          <label><?= $lang['password'] ?></label>
+          <input type="password" name="password" class="form-control" placeholder="<?= $lang['new_password'] ?>">
+        </div>
+
+        <div class="form-group">
+          <label><?= $lang['confirm_password'] ?></label>
+          <input type="password" name="password_confirm" class="form-control" placeholder="<?= $lang['confirm_password'] ?>">
+        </div>
+
+        <button type="submit" class="btn btn-primary"><?= $lang['save_changes'] ?></button>
       </form>
     </div>
-  </div>
+  </section>
 </div>
 
-<?php include __DIR__ . '/inc/footer.php'; ?>
+<?php include __DIR__ . '/footer.php'; ?>
