@@ -19,30 +19,30 @@ WORKDIR /build/tachoparser/cmd/dddparser
 RUN go build -o dddparser
 
 # ------------------------
-# Stage 2: PHP + Apache + MariaDB + AdminLTE
+# Stage 2: PHP + Apache + MariaDB + AdminLTE + phpMyAdmin
 # ------------------------
 FROM php:8.2-apache
 
-# Set database environment values
+# Environment variables for database
 ENV DB_HOST=127.0.0.1 \
     DB_NAME=mytacho \
     DB_USER=mytacho_user \
     DB_PASS=mytacho_pass
 
-# PHP extensions + MariaDB + Node.js
+# Install dependencies
 RUN apt-get update && \
     apt-get install -y mariadb-server unzip wget git nodejs npm && \
     docker-php-ext-install mysqli pdo_mysql && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy dddparser
+# Copy dddparser binary
 COPY --from=builder /build/tachoparser/cmd/dddparser/dddparser /usr/local/bin/dddparser
 
-# Web app
+# Copy web app
 COPY src/ /var/www/html/
 RUN mkdir -p /var/www/html/uploads && chown www-data:www-data /var/www/html/uploads
 
-# AdminLTE with plugins included
+# Install AdminLTE with plugins included
 RUN wget https://github.com/ColorlibHQ/AdminLTE/archive/refs/tags/v3.2.0.zip -O /tmp/adminlte.zip && \
     unzip /tmp/adminlte.zip -d /var/www/html/ && \
     mv /var/www/html/AdminLTE-3.2.0 /var/www/html/adminlte && \
@@ -62,7 +62,7 @@ RUN cat << 'EOF' > /var/www/html/phpmyadmin/config.inc.php
 <?php
 $i = 0;
 $i++;
-$cfg['blowfish_secret'] = 'MyTachoSecret'; // random secret
+$cfg['blowfish_secret'] = 'MyTachoSecret';
 $cfg['Servers'][$i]['host'] = 'localhost';
 $cfg['Servers'][$i]['connect_type'] = 'socket';
 $cfg['Servers'][$i]['socket'] = '/var/run/mysqld/mysqld.sock';
@@ -72,7 +72,6 @@ $cfg['Servers'][$i]['password'] = 'mytacho_pass';
 $cfg['UploadDir'] = '';
 $cfg['SaveDir'] = '';
 EOF
-
 
 # Configure Apache for phpMyAdmin
 RUN cat << 'EOF' > /etc/apache2/conf-available/phpmyadmin.conf
@@ -84,10 +83,11 @@ RUN cat << 'EOF' > /etc/apache2/conf-available/phpmyadmin.conf
 EOF
 RUN a2enconf phpmyadmin
 
-# Entrypoint
+# Copy entrypoint
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Ports
+# Expose ports
 EXPOSE 80 3306
+
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
