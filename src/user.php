@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/inc/header.php';
 require_once __DIR__ . '/inc/db.php';
+require_once __DIR__ . '/inc/lang.php';
 
 // Get current user info
 $userId = $_SESSION['user_id'] ?? null;
@@ -27,24 +28,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $newPassword = $_POST['password'] ?? '';
     $newLang = $_POST['language'] ?? 'en';
 
-    if (!empty($newPassword)) {
-        $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
-        $stmt = $pdo->prepare("UPDATE users SET password = ?, language = ? WHERE id = ?");
-        if ($stmt->execute([$hashedPassword, $newLang, $userId])) {
+    // Only admin can update username
+    $newUsername = ($user['role'] === 'admin' && isset($_POST['username'])) ? $_POST['username'] : $user['username'];
+
+    try {
+        if (!empty($newPassword)) {
+            $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
+            $stmt = $pdo->prepare("UPDATE users SET username = ?, password = ?, language = ? WHERE id = ?");
+            $stmt->execute([$newUsername, $hashedPassword, $newLang, $userId]);
             $success = "Profile updated successfully!";
-            $user['language'] = $newLang;
         } else {
-            $error = "Failed to update profile.";
+            $stmt = $pdo->prepare("UPDATE users SET username = ?, language = ? WHERE id = ?");
+            $stmt->execute([$newUsername, $newLang, $userId]);
+            $success = "Profile updated successfully!";
         }
-    } else {
-        // Only update language
-        $stmt = $pdo->prepare("UPDATE users SET language = ? WHERE id = ?");
-        if ($stmt->execute([$newLang, $userId])) {
-            $success = "Language updated successfully!";
-            $user['language'] = $newLang;
-        } else {
-            $error = "Failed to update language.";
+        // Update session and $user array
+        $user['language'] = $newLang;
+        $user['username'] = $newUsername;
+
+        // Reload language strings immediately
+        $langFile = __DIR__ . "/inc/lang/{$newLang}.php";
+        if (file_exists($langFile)) {
+            $L = include $langFile;
         }
+
+    } catch (PDOException $e) {
+        $error = "Failed to update profile: " . $e->getMessage();
     }
 }
 
@@ -56,7 +65,7 @@ $languages = array_map(fn($f) => basename($f, '.php'), $langFiles);
 <div class="content-wrapper">
     <div class="content-header">
         <div class="container-fluid">
-            <h1 class="m-0">User Settings</h1>
+            <h1 class="m-0"><?= $L['user_settings'] ?? 'User Settings' ?></h1>
         </div>
     </div>
 
@@ -71,7 +80,7 @@ $languages = array_map(fn($f) => basename($f, '.php'), $langFiles);
 
             <form method="POST">
                 <div class="form-group">
-                    <label for="username">Username</label>
+                    <label for="username"><?= $L['username'] ?? 'Username' ?></label>
                     <input type="text" 
                            id="username" 
                            name="username" 
@@ -81,12 +90,12 @@ $languages = array_map(fn($f) => basename($f, '.php'), $langFiles);
                 </div>
 
                 <div class="form-group">
-                    <label for="password">New Password</label>
-                    <input type="password" id="password" name="password" class="form-control" placeholder="Leave blank to keep current">
+                    <label for="password"><?= $L['new_password'] ?? 'New Password' ?></label>
+                    <input type="password" id="password" name="password" class="form-control" placeholder="<?= $L['leave_blank'] ?? 'Leave blank to keep current' ?>">
                 </div>
 
                 <div class="form-group">
-                    <label for="language">Language</label>
+                    <label for="language"><?= $L['language'] ?? 'Language' ?></label>
                     <select id="language" name="language" class="form-control">
                         <?php foreach ($languages as $lang) : ?>
                             <option value="<?= $lang ?>" <?= $user['language'] === $lang ? 'selected' : '' ?>><?= strtoupper($lang) ?></option>
@@ -94,14 +103,10 @@ $languages = array_map(fn($f) => basename($f, '.php'), $langFiles);
                     </select>
                 </div>
 
-                <button type="submit" class="btn btn-primary">Save Changes</button>
+                <button type="submit" class="btn btn-primary"><?= $L['save_changes'] ?? 'Save Changes' ?></button>
             </form>
         </div>
     </div>
 </div>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
-
-</div>
-
-<?php include __DIR__ . '/inc/footer.php'; ?>
