@@ -19,7 +19,7 @@ WORKDIR /build/tachoparser/cmd/dddparser
 RUN go build -o dddparser
 
 # ------------------------
-# Stage 2: PHP + Apache + MariaDB + AdminLTE + phpMyAdmin
+# Stage 2: PHP + Apache + MariaDB + AdminLTE
 # ------------------------
 FROM php:8.2-apache
 
@@ -48,40 +48,6 @@ RUN wget https://github.com/ColorlibHQ/AdminLTE/archive/refs/tags/v3.2.0.zip -O 
     mv /var/www/html/AdminLTE-3.2.0 /var/www/html/adminlte && \
     rm /tmp/adminlte.zip && \
     chown -R www-data:www-data /var/www/html/adminlte
-
-# ------------------------
-# phpMyAdmin
-# ------------------------
-RUN wget https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.zip -O /tmp/pma.zip && \
-    unzip /tmp/pma.zip -d /var/www/html/phpmyadmin && \
-    rm /tmp/pma.zip
-RUN chown -R www-data:www-data /var/www/html/phpmyadmin
-
-# Configure phpMyAdmin to use UNIX socket
-RUN cat << 'EOF' > /var/www/html/phpmyadmin/config.inc.php
-<?php
-$i = 0;
-$i++;
-$cfg['blowfish_secret'] = 'MyTachoSecret';
-$cfg['Servers'][$i]['host'] = 'localhost';
-$cfg['Servers'][$i]['connect_type'] = 'socket';
-$cfg['Servers'][$i]['socket'] = '/var/run/mysqld/mysqld.sock';
-$cfg['Servers'][$i]['auth_type'] = 'cookie';
-$cfg['Servers'][$i]['user'] = 'mytacho_user';
-$cfg['Servers'][$i]['password'] = 'mytacho_pass';
-$cfg['UploadDir'] = '';
-$cfg['SaveDir'] = '';
-EOF
-
-# Configure Apache for phpMyAdmin
-RUN cat << 'EOF' > /etc/apache2/conf-available/phpmyadmin.conf
-<Directory "/var/www/html/phpmyadmin">
-    Options Indexes FollowSymLinks
-    AllowOverride All
-    Require all granted
-</Directory>
-EOF
-RUN a2enconf phpmyadmin
 
 # Copy entrypoint
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
