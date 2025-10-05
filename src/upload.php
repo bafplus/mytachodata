@@ -15,7 +15,7 @@ $userId = $_SESSION['user_id'];
 $error = '';
 $summary = null;
 
-// Utility function for timestamps
+// Helper: find timestamp
 function find_timestamp($rec) {
     if (!is_array($rec)) return null;
     $candidates = [
@@ -57,7 +57,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
 
                 if (!empty($records)) {
                     $startTime = find_timestamp($records[0]);
-                    $endTime = find_timestamp(end($records));
+                    $lastRecord = end($records);
+                    if (is_array($lastRecord)) {
+                        $endTime = find_timestamp($lastRecord);
+                    }
                 }
 
                 $summary = [
