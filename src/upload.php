@@ -2,8 +2,8 @@
 require_once __DIR__ . '/inc/db.php';
 require_once __DIR__ . '/inc/lang.php';
 
+// Start session and check login
 if (!isset($_SESSION)) session_start();
-
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
@@ -13,10 +13,12 @@ $userId = $_SESSION['user_id'];
 $error = '';
 $summary = null;
 
+// Handle file upload
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
     if ($_FILES['ddd_file']['error'] === UPLOAD_ERR_OK) {
         $tmpPath = $_FILES['ddd_file']['tmp_name'];
 
+        // Run parser exactly like import_raw.php
         $cmd = escapeshellcmd("dddparser -card -input " . escapeshellarg($tmpPath) . " -format");
         $jsonOutput = shell_exec($cmd);
 
@@ -25,38 +27,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
             if ($data === null) {
                 $error = $lang['parser_invalid_json'] ?? 'Parser returned invalid JSON.';
             } else {
-                $_SESSION['import_data'] = $data;
+                // Flatten events for summary
+                $records = $data['card_event_data_1']['card_event_records_array'] ?? [];
+                $flatRecords = [];
 
-                // --- Extract events from nested structure ---
-                $records = [];
-                if (isset($data['card_event_data_1']['card_event_records_array'])) {
-                    foreach ($data['card_event_data_1']['card_event_records_array'] as $arrayItem) {
-                        if (!empty($arrayItem['card_event_records']) && is_array($arrayItem['card_event_records'])) {
-                            foreach ($arrayItem['card_event_records'] as $event) {
-                                if (!empty($event['event_begin_time'])) {
-                                    $records[] = [
-                                        'event_type' => $event['event_type'] ?? null,
-                                        'timestamp' => $event['event_begin_time'],
-                                        'vehicle_number' => $event['event_vehicle_registration']['vehicle_registration_number'] ?? null,
-                                        'additional' => $event
-                                    ];
-                                }
+                foreach ($records as $eventBlock) {
+                    if (!empty($eventBlock['card_event_records'])) {
+                        foreach ($eventBlock['card_event_records'] as $r) {
+                            if (!empty($r['event_begin_time'])) {
+                                $flatRecords[] = [
+                                    'event_type' => $r['event_type'] ?? null,
+                                    'timestamp' => $r['event_begin_time'],
+                                    'vehicle_number' => $r['event_vehicle_registration']['vehicle_registration_number'] ?? null,
+                                    'raw_json' => $r
+                                ];
                             }
                         }
                     }
                 }
 
-                $recordCount = count($records);
-                $startTime = $recordCount ? $records[0]['timestamp'] : null;
-                $endTime = $recordCount ? end($records)['timestamp'] : null;
+                $recordCount = count($flatRecords);
+                $startTime = $flatRecords[0]['timestamp'] ?? null;
+                $endTime = !empty($flatRecords) ? end($flatRecords)['timestamp'] : null;
 
                 $summary = [
                     'records' => $recordCount,
                     'start' => $startTime,
-                    'end' => $endTime
+                    'end' => $endTime,
+                    'flat_records' => $flatRecords
                 ];
 
-                $_SESSION['import_records'] = $records; // Store simplified events for import
+                // Store in session for import
+                $_SESSION['import_data'] = $summary;
             }
         } else {
             $error = $lang['parser_failed'] ?? 'Parser execution failed or returned no output.';
@@ -84,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
     <div class="content-wrapper">
         <section class="content">
             <div class="container-fluid mt-4">
-                <?php if ($error): ?>
+                <?php if (!empty($error)): ?>
                     <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
                 <?php endif; ?>
 
@@ -128,4 +130,3 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
 <script src="/adminlte/dist/js/adminlte.min.js"></script>
 </body>
 </html>
-
