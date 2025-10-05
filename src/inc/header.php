@@ -1,3 +1,18 @@
+<?php
+if (!isset($_SESSION)) {
+    session_start();
+}
+
+// Determine current language
+$currentLang = $_SESSION['language'] ?? 'en';
+$langFile = __DIR__ . "/../lang/$currentLang.php";
+
+if (file_exists($langFile)) {
+    $lang = include $langFile;
+} else {
+    $lang = include __DIR__ . '/../lang/en.php';
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
