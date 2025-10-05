@@ -1,56 +1,74 @@
 <?php
 require_once __DIR__ . '/inc/db.php';
-require_once __DIR__ . '/inc/lang.php'; // optional for translations
+require_once __DIR__ . '/inc/lang.php';
 
 // Start session
 if (!isset($_SESSION)) session_start();
 
-// Check login
+// Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
 }
 
-$userId = $_SESSION['user_id'];
 $error = '';
-$summary = null;
+$summary = [];
 
 // Handle file upload
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
-    if ($_FILES['ddd_file']['error'] === UPLOAD_ERR_OK) {
-        $tmpPath = $_FILES['ddd_file']['tmp_name'];
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['dddfile'])) {
+    $uploadDir = __DIR__ . "/uploads/";
+    if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
 
-        // Run parser exactly like import_raw.php
-        $cmd = escapeshellcmd("dddparser -card -input " . escapeshellarg($tmpPath) . " -format");
-        $jsonOutput = shell_exec($cmd);
+    $uploadedFile = $uploadDir . basename($_FILES['dddfile']['name']);
 
-        if ($jsonOutput) {
-            $data = json_decode($jsonOutput, true);
-            if ($data === null) {
-                $error = $lang['parser_invalid_json'] ?? 'Parser returned invalid JSON.';
-            } else {
-                // Store parsed data in session for later confirmation/import
-                $_SESSION['import_data'] = $data;
-
-                // Safe summary generation
-                $records = $data['records'] ?? [];
-                $recordCount = count($records);
-                $startTime = $records[0]['timestamp'] ?? null;
-                $endTime = !empty($records) ? end($records)['timestamp'] : null;
-
-                $summary = [
-                    'records' => $recordCount,
-                    'start' => $startTime,
-                    'end' => $endTime
-                ];
-            }
+    if (move_uploaded_file($_FILES['dddfile']['tmp_name'], $uploadedFile)) {
+        // Run DDD parser
+        $parserPath = __DIR__ . "/dddparser"; // adjust if needed
+        if (!is_executable($parserPath)) {
+            $error = "DDD parser not found or not executable.";
         } else {
-            $error = $lang['parser_failed'] ?? 'Parser execution failed or returned no output.';
+            $cmd = escapeshellcmd("$parserPath -card -input " . escapeshellarg($uploadedFile) . " -format");
+            $output = shell_exec($cmd);
+
+            if (!$output) {
+                $error = "Parser returned no output.";
+            } else {
+                $jsonData = json_decode($output, true);
+                if (!$jsonData) {
+                    $error = "Invalid JSON from parser.";
+                } else {
+                    $events = $jsonData['card_event_data_1']['card_event_records_array'] ?? [];
+                    $recordCount = 0;
+                    $firstDate = null;
+                    $lastDate = null;
+
+                    foreach ($events as $eventGroup) {
+                        foreach ($eventGroup['card_event_records'] as $event) {
+                            if (!empty($event['event_begin_time'])) {
+                                $recordCount++;
+                                $time = strtotime($event['event_begin_time']);
+                                if (!$firstDate || $time < $firstDate) $firstDate = $time;
+                                if (!$lastDate || $time > $lastDate) $lastDate = $time;
+                            }
+                        }
+                    }
+
+                    $summary = [
+                        'records_found' => $recordCount,
+                        'time_range' => [
+                            'from' => $firstDate ? date('Y-m-d H:i:s', $firstDate) : '-',
+                            'to'   => $lastDate  ? date('Y-m-d H:i:s', $lastDate)  : '-'
+                        ],
+                        'json_file' => $uploadedFile // store for later import
+                    ];
+                }
+            }
         }
     } else {
-        $error = $lang['file_upload_error'] ?? 'File upload failed.';
+        $error = "Failed to save uploaded file.";
     }
 }
+
 ?>
 
 <!DOCTYPE html>
@@ -61,52 +79,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
     <title><?= $lang['upload_title'] ?? 'Upload DDD File' ?></title>
     <link rel="stylesheet" href="/adminlte/plugins/fontawesome-free/css/all.min.css">
     <link rel="stylesheet" href="/adminlte/dist/css/adminlte.min.css">
+    <style>
+        body { background-color: #f4f6f9; }
+        .upload-box { margin: 5% auto; width: 500px; }
+    </style>
 </head>
-<body class="hold-transition sidebar-mini">
-<div class="wrapper">
-    <?php require_once __DIR__ . '/inc/header.php'; ?>
-    <?php require_once __DIR__ . '/inc/sidebar.php'; ?>
+<body>
 
-    <div class="content-wrapper">
-        <section class="content">
-            <div class="container-fluid mt-4">
-                <?php if (!empty($error)): ?>
-                    <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
-                <?php endif; ?>
+<div class="upload-box">
+    <div class="card card-outline card-primary">
+        <div class="card-header text-center">
+            <h3><?= $lang['upload_title'] ?? 'Upload DDD File' ?></h3>
+        </div>
+        <div class="card-body">
 
-                <div class="card card-primary">
-                    <div class="card-header">
-                        <h3 class="card-title"><?= $lang['upload_title'] ?? 'Upload DDD File' ?></h3>
-                    </div>
+            <?php if ($error): ?>
+                <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
+            <?php endif; ?>
+
+            <form method="POST" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label><?= $lang['choose_file'] ?? 'Choose .ddd file' ?></label>
+                    <input type="file" name="dddfile" accept=".ddd" class="form-control" required>
+                </div>
+                <button type="submit" class="btn btn-primary"><?= $lang['upload'] ?? 'Upload' ?></button>
+            </form>
+
+            <?php if (!empty($summary)): ?>
+                <div class="card mt-3">
+                    <div class="card-header"><?= $lang['upload_summary'] ?? 'Upload Summary' ?></div>
                     <div class="card-body">
-                        <form method="post" enctype="multipart/form-data">
-                            <div class="form-group">
-                                <label><?= $lang['choose_file'] ?? 'Choose .ddd file' ?></label>
-                                <input type="file" name="ddd_file" class="form-control" accept=".ddd" required>
-                            </div>
-                            <button type="submit" class="btn btn-primary"><?= $lang['upload_preview'] ?? 'Upload & Preview' ?></button>
+                        <p><?= $lang['records_found'] ?? 'Records found' ?>: <?= $summary['records_found'] ?></p>
+                        <p><?= $lang['time_range'] ?? 'Time range' ?>: <?= $summary['time_range']['from'] ?> - <?= $summary['time_range']['to'] ?></p>
+
+                        <!-- Placeholder for Import button -->
+                        <form method="POST" action="import.php">
+                            <input type="hidden" name="json_file" value="<?= htmlspecialchars($summary['json_file']) ?>">
+                            <button type="submit" class="btn btn-success"><?= $lang['import_to_db'] ?? 'Import to Database' ?></button>
                         </form>
                     </div>
                 </div>
+            <?php endif; ?>
 
-                <?php if ($summary): ?>
-                    <div class="card card-success mt-4">
-                        <div class="card-header">
-                            <h3 class="card-title"><?= $lang['upload_summary'] ?? 'Upload Summary' ?></h3>
-                        </div>
-                        <div class="card-body">
-                            <p><?= sprintf($lang['records_found'] ?? 'Records found: %d', $summary['records']) ?></p>
-                            <p><?= sprintf($lang['time_range'] ?? 'Time range: %s - %s', $summary['start'] ?? '-', $summary['end'] ?? '-') ?></p>
-                            <a href="import_execute.php" class="btn btn-success"><?= $lang['confirm_import'] ?? 'Confirm Import' ?></a>
-                        </div>
-                    </div>
-                <?php endif; ?>
-
-            </div>
-        </section>
+        </div>
     </div>
-
-    <?php require_once __DIR__ . '/inc/footer.php'; ?>
 </div>
 
 <script src="/adminlte/plugins/jquery/jquery.min.js"></script>
@@ -114,4 +130,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
 <script src="/adminlte/dist/js/adminlte.min.js"></script>
 </body>
 </html>
+
 
