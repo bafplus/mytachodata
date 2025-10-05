@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/inc/db.php'; // Provides $dbHost, $dbUser, $dbPass, $pdoOptions
+require_once __DIR__ . '/inc/db.php';
 
 if (!isset($_SESSION)) session_start();
 if (!isset($_SESSION['user_id'])) {
@@ -10,118 +10,126 @@ if (!isset($_SESSION['user_id'])) {
 $userId = intval($_SESSION['user_id']);
 $userDbName = "mytacho_user_" . $userId;
 
+// --- DB credentials fallback ---
+$dbHost = $dbHost ?? getenv('DB_HOST') ?: '127.0.0.1';
+$dbUser = $dbUser ?? getenv('DB_USER') ?: 'mytacho_user';
+$dbPass = $dbPass ?? getenv('DB_PASS') ?: 'mytacho_pass';
+$pdoOptions = $pdoOptions ?? [
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
+];
+
+// Connect to user-specific DB
 try {
-    $userPdo = new PDO("mysql:host={$dbHost};dbname={$userDbName};charset=utf8mb4", $dbUser, $dbPass, $pdoOptions);
-    $userPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $userPdo = new PDO(
+        "mysql:host={$dbHost};dbname={$userDbName};charset=utf8mb4",
+        $dbUser,
+        $dbPass,
+        $pdoOptions
+    );
 } catch (PDOException $e) {
-    die("Could not connect to user database: " . $e->getMessage());
+    die("Could not connect to user database: " . htmlspecialchars($e->getMessage()));
 }
 
-// --- Fetch driver info ---
-$driverName = '';
-$stmt = $userPdo->query("SELECT raw FROM card_identification_and_driver_card_holder_identification_1 LIMIT 1");
-if ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-    $json = json_decode($row['raw'], true);
-    $driverName = $json['driver_name'] ?? ($json['name'] ?? 'Unknown');
+// Fetch driver info (from first card identification table)
+$driverName = $cardNumber = $cardExpiry = '-';
+$stmt = $userPdo->query("SELECT raw FROM card_icc_identification_1 ORDER BY id ASC LIMIT 1");
+if ($row = $stmt->fetch()) {
+    $raw = json_decode($row['raw'], true);
+    $driverName = $raw['driver_name'] ?? '-';
+    $cardNumber = $raw['card_number'] ?? '-';
+    $cardExpiry = $raw['expiry_date'] ?? '-';
 }
 
-// --- Count distinct vehicles ---
-$vehiclesUsed = 0;
-$stmt = $userPdo->query("SELECT DISTINCT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.vehicle_registration_number')) AS reg FROM card_vehicles_used_1");
-$vehiclesUsed = $stmt->rowCount();
-
-// --- Count events and faults ---
-$totalEvents = $userPdo->query("SELECT COUNT(*) FROM card_event_data_1")->fetchColumn()
-             + $userPdo->query("SELECT COUNT(*) FROM card_event_data_2")->fetchColumn();
-$totalFaults = $userPdo->query("SELECT COUNT(*) FROM card_fault_data_1")->fetchColumn()
-              + $userPdo->query("SELECT COUNT(*) FROM card_fault_data_2")->fetchColumn();
-
-// --- Calculate driving hours ---
-$totalHours = 0;
-foreach (['card_driver_activity_1','card_driver_activity_2'] as $table) {
-    $stmt = $userPdo->query("SELECT raw FROM {$table}");
-    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        $rec = json_decode($row['raw'], true);
-        if (!empty($rec['start_time']) && !empty($rec['end_time'])) {
-            $start = strtotime($rec['start_time']);
-            $end = strtotime($rec['end_time']);
-            if ($start && $end && $end > $start) {
-                $totalHours += ($end - $start)/3600;
-            }
-        }
-    }
+// Count vehicles
+$vehicleCount = 0;
+if ($userPdo->query("SHOW TABLES LIKE 'card_vehicles_used_1'")->rowCount() > 0) {
+    $stmt = $userPdo->query("SELECT COUNT(DISTINCT JSON_UNQUOTE(JSON_EXTRACT(raw, '$.registration'))) AS cnt FROM card_vehicles_used_1");
+    $vehicleCount = intval($stmt->fetchColumn());
 }
-$totalHours = round($totalHours,2);
 
+// Count events
+$eventCount = 0;
+if ($userPdo->query("SHOW TABLES LIKE 'card_event_data_1'")->rowCount() > 0) {
+    $stmt = $userPdo->query("SELECT COUNT(*) FROM card_event_data_1");
+    $eventCount = intval($stmt->fetchColumn());
+}
+
+// Count faults
+$faultCount = 0;
+if ($userPdo->query("SHOW TABLES LIKE 'card_fault_data_1'")->rowCount() > 0) {
+    $stmt = $userPdo->query("SELECT COUNT(*) FROM card_fault_data_1");
+    $faultCount = intval($stmt->fetchColumn());
+}
+
+require_once __DIR__ . '/inc/header.php';
+require_once __DIR__ . '/inc/sidebar.php';
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>MyTacho Dashboard</title>
-<link rel="stylesheet" href="/adminlte/plugins/fontawesome-free/css/all.min.css">
-<link rel="stylesheet" href="/adminlte/dist/css/adminlte.min.css">
-</head>
-<body class="hold-transition sidebar-mini">
-<div class="wrapper">
-<?php require_once __DIR__ . '/inc/header.php'; ?>
-<?php require_once __DIR__ . '/inc/sidebar.php'; ?>
 
 <div class="content-wrapper">
-  <section class="content-header">
-    <div class="container-fluid">
-      <h1>Dashboard</h1>
-      <p>Welcome, <?= htmlspecialchars($driverName) ?></p>
+    <div class="content-header">
+        <div class="container-fluid">
+            <h1 class="m-0">Dashboard</h1>
+        </div>
     </div>
-  </section>
 
-  <section class="content">
-    <div class="container-fluid">
-      <div class="row">
-        <div class="col-lg-3 col-6">
-          <div class="small-box bg-info">
-            <div class="inner">
-              <h3><?= $vehiclesUsed ?></h3>
-              <p>Vehicles Used</p>
+    <div class="content">
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="info-box bg-info">
+                        <span class="info-box-icon"><i class="fas fa-id-card"></i></span>
+                        <div class="info-box-content">
+                            <span class="info-box-text">Driver Name</span>
+                            <span class="info-box-number"><?= htmlspecialchars($driverName) ?></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="info-box bg-success">
+                        <span class="info-box-icon"><i class="fas fa-car"></i></span>
+                        <div class="info-box-content">
+                            <span class="info-box-text">Vehicles Used</span>
+                            <span class="info-box-number"><?= $vehicleCount ?></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="info-box bg-warning">
+                        <span class="info-box-icon"><i class="fas fa-exclamation-triangle"></i></span>
+                        <div class="info-box-content">
+                            <span class="info-box-text">Events / Faults</span>
+                            <span class="info-box-number"><?= $eventCount ?> / <?= $faultCount ?></span>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="icon"><i class="fas fa-truck"></i></div>
-          </div>
-        </div>
-        <div class="col-lg-3 col-6">
-          <div class="small-box bg-success">
-            <div class="inner">
-              <h3><?= $totalEvents ?></h3>
-              <p>Events</p>
+
+            <div class="row mt-3">
+                <div class="col-md-4">
+                    <div class="info-box bg-primary">
+                        <span class="info-box-icon"><i class="fas fa-credit-card"></i></span>
+                        <div class="info-box-content">
+                            <span class="info-box-text">Card Number</span>
+                            <span class="info-box-number"><?= htmlspecialchars($cardNumber) ?></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="info-box bg-danger">
+                        <span class="info-box-icon"><i class="fas fa-calendar-alt"></i></span>
+                        <div class="info-box-content">
+                            <span class="info-box-text">Card Expiry</span>
+                            <span class="info-box-number"><?= htmlspecialchars($cardExpiry) ?></span>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="icon"><i class="fas fa-exclamation-circle"></i></div>
-          </div>
+
         </div>
-        <div class="col-lg-3 col-6">
-          <div class="small-box bg-danger">
-            <div class="inner">
-              <h3><?= $totalFaults ?></h3>
-              <p>Faults</p>
-            </div>
-            <div class="icon"><i class="fas fa-bug"></i></div>
-          </div>
-        </div>
-        <div class="col-lg-3 col-6">
-          <div class="small-box bg-warning">
-            <div class="inner">
-              <h3><?= $totalHours ?></h3>
-              <p>Driving Hours</p>
-            </div>
-            <div class="icon"><i class="fas fa-clock"></i></div>
-          </div>
-        </div>
-      </div>
     </div>
-  </section>
 </div>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
-<script src="/adminlte/plugins/jquery/jquery.min.js"></script>
-<script src="/adminlte/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
-<script src="/adminlte/dist/js/adminlte.min.js"></script>
-</body>
-</html>
+
