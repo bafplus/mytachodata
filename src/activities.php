@@ -33,31 +33,22 @@ try {
     die("Could not connect to user database: " . htmlspecialchars($e->getMessage()));
 }
 
-// Fetch all activities from both blocks
+// Fetch all activities from both tables
 $activities = [];
 
 try {
-    $queries = ['card_driver_activity_1', 'card_driver_activity_2'];
+    $tables = ['card_driver_activity_1', 'card_driver_activity_2'];
 
-    foreach ($queries as $table) {
+    foreach ($tables as $table) {
         $stmt = $userPdo->query("
             SELECT 
-                JSON_UNQUOTE(JSON_EXTRACT(activity, '$.start_time')) AS start_time,
-                JSON_UNQUOTE(JSON_EXTRACT(activity, '$.end_time')) AS end_time,
-                JSON_UNQUOTE(JSON_EXTRACT(activity, '$.activity_type')) AS activity_type,
-                JSON_UNQUOTE(JSON_EXTRACT(activity, '$.vehicle_registration_number')) AS vehicle
-            FROM {$table},
-            JSON_TABLE(raw, '$.driver_activity[*]'
-                COLUMNS (
-                    start_time VARCHAR(50) PATH '$.start_time',
-                    end_time VARCHAR(50) PATH '$.end_time',
-                    activity_type VARCHAR(50) PATH '$.activity_type',
-                    vehicle_registration_number VARCHAR(50) PATH '$.vehicle_registration_number'
-                )
-            ) AS activity
+                JSON_UNQUOTE(JSON_EXTRACT(raw, '$.start_time')) AS start_time,
+                JSON_UNQUOTE(JSON_EXTRACT(raw, '$.end_time')) AS end_time,
+                JSON_UNQUOTE(JSON_EXTRACT(raw, '$.activity_type')) AS activity_type,
+                JSON_UNQUOTE(JSON_EXTRACT(raw, '$.vehicle_registration_number')) AS vehicle
+            FROM {$table}
             ORDER BY start_time ASC
         ");
-
         $activities = array_merge($activities, $stmt->fetchAll());
     }
 
@@ -108,3 +99,4 @@ require_once __DIR__ . '/inc/sidebar.php';
 </div>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
+
