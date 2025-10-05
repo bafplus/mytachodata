@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/inc/db.php';
 
+// Session and login check
 if (!isset($_SESSION)) session_start();
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
@@ -10,7 +11,37 @@ if (!isset($_SESSION['user_id'])) {
 $userId = intval($_SESSION['user_id']);
 $userDbName = "mytacho_user_" . $userId;
 
-// Connect to user DB
+// DB credentials and options
+$dbHost = getenv('DB_HOST') ?: '127.0.0.1';
+$dbUser = getenv('DB_USER') ?: 'mytacho_user';
+$dbPass = getenv('DB_PASS') ?: 'mytacho_pass';
+$pdoOptions = [
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
+];
+
+// Connect to main DB for user info
+try {
+    $mainPdo = new PDO(
+        "mysql:host={$dbHost};dbname=" . (getenv('DB_NAME') ?: 'mytacho') . ";charset=utf8mb4",
+        $dbUser,
+        $dbPass,
+        $pdoOptions
+    );
+} catch (PDOException $e) {
+    die("Could not connect to main database: " . htmlspecialchars($e->getMessage()));
+}
+
+// Fetch user info
+$stmt = $mainPdo->prepare("SELECT id, username, role, language FROM users WHERE id = ?");
+$stmt->execute([$userId]);
+$user = $stmt->fetch();
+if (!$user) {
+    die("User not found.");
+}
+
+// Connect to per-user database if exists
 try {
     $userPdo = new PDO(
         "mysql:host={$dbHost};dbname={$userDbName};charset=utf8mb4",
@@ -19,51 +50,9 @@ try {
         $pdoOptions
     );
     $userPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $userDbExists = true;
 } catch (PDOException $e) {
-    die("Could not connect to user database: " . htmlspecialchars($e->getMessage()));
-}
-
-// --- Dashboard counts ---
-$counts = [
-    'unique_vehicles' => 0,
-    'events' => 0,
-    'faults' => 0,
-    'driver_activity' => 0
-];
-
-// Unique Vehicles
-$vehiclesTables = ['card_vehicles_used_1','card_vehicles_used_2','card_vehicle_units_used'];
-$uniqueVehicles = [];
-foreach ($vehiclesTables as $tbl) {
-    $sql = "SELECT JSON_UNQUOTE(JSON_EXTRACT(raw, '$.vehicle_registration_number')) AS reg FROM `{$tbl}`";
-    foreach ($userPdo->query($sql) as $row) {
-        if (!empty($row['reg'])) $uniqueVehicles[$row['reg']] = true;
-    }
-}
-$counts['unique_vehicles'] = count($uniqueVehicles);
-
-// Events
-$eventTables = ['card_event_data_1','card_event_data_2','card_place_daily_work_period_1','card_place_daily_work_period_2'];
-$counts['events'] = 0;
-foreach ($eventTables as $tbl) {
-    $res = $userPdo->query("SELECT COUNT(*) AS cnt FROM `{$tbl}`")->fetch(PDO::FETCH_ASSOC);
-    $counts['events'] += $res['cnt'] ?? 0;
-}
-
-// Faults
-$faultTables = ['card_fault_data_1','card_fault_data_2'];
-$counts['faults'] = 0;
-foreach ($faultTables as $tbl) {
-    $res = $userPdo->query("SELECT COUNT(*) AS cnt FROM `{$tbl}`")->fetch(PDO::FETCH_ASSOC);
-    $counts['faults'] += $res['cnt'] ?? 0;
-}
-
-// Driver Activity
-$activityTables = ['card_driver_activity_1','card_driver_activity_2'];
-$counts['driver_activity'] = 0;
-foreach ($activityTables as $tbl) {
-    $res = $userPdo->query("SELECT COUNT(*) AS cnt FROM `{$tbl}`")->fetch(PDO::FETCH_ASSOC);
-    $counts['driver_activity'] += $res['cnt'] ?? 0;
+    $userDbExists = false; // database not yet created
 }
 
 // Include header and sidebar
@@ -80,52 +69,36 @@ require_once __DIR__ . '/inc/sidebar.php';
 
     <div class="content">
         <div class="container-fluid">
-            <div class="row">
-                <!-- Unique Vehicles -->
-                <div class="col-lg-3 col-6">
-                    <div class="small-box bg-info">
-                        <div class="inner">
-                            <h3><?= $counts['unique_vehicles'] ?></h3>
-                            <p>Unique Vehicles Used</p>
-                        </div>
-                        <div class="icon"><i class="fas fa-truck"></i></div>
-                    </div>
+            <p>Welcome, <?= htmlspecialchars($user['username']) ?>!</p>
+
+            <?php if (!$userDbExists): ?>
+                <div class="alert alert-info">
+                    You haven’t imported any data yet. <a href="upload.php">Upload a DDD file</a> to get started.
                 </div>
-                <!-- Events -->
-                <div class="col-lg-3 col-6">
-                    <div class="small-box bg-success">
-                        <div class="inner">
-                            <h3><?= $counts['events'] ?></h3>
-                            <p>Events</p>
-                        </div>
-                        <div class="icon"><i class="fas fa-calendar-alt"></i></div>
-                    </div>
-                </div>
-                <!-- Faults -->
-                <div class="col-lg-3 col-6">
-                    <div class="small-box bg-danger">
-                        <div class="inner">
-                            <h3><?= $counts['faults'] ?></h3>
-                            <p>Faults</p>
-                        </div>
-                        <div class="icon"><i class="fas fa-exclamation-triangle"></i></div>
-                    </div>
-                </div>
-                <!-- Driver Activity -->
-                <div class="col-lg-3 col-6">
-                    <div class="small-box bg-warning">
-                        <div class="inner">
-                            <h3><?= $counts['driver_activity'] ?></h3>
-                            <p>Driver Activity Records</p>
-                        </div>
-                        <div class="icon"><i class="fas fa-user-clock"></i></div>
-                    </div>
-                </div>
-            </div>
-            <p>Welcome, <?= htmlspecialchars($_SESSION['username'] ?? 'User') ?>! This is your MyTacho dashboard.</p>
+            <?php else: ?>
+                <?php
+                // Example: show simple counts for some main tables
+                $tablesToCheck = [
+                    'card_event_data_1',
+                    'card_driver_activity_1',
+                    'card_vehicles_used_1'
+                ];
+
+                echo '<ul class="list-group">';
+                foreach ($tablesToCheck as $tbl) {
+                    try {
+                        $cnt = $userPdo->query("SELECT COUNT(*) FROM `$tbl`")->fetchColumn();
+                        echo '<li class="list-group-item"><strong>' . htmlspecialchars($tbl) . ':</strong> ' . intval($cnt) . ' rows</li>';
+                    } catch (PDOException $e) {
+                        echo '<li class="list-group-item"><strong>' . htmlspecialchars($tbl) . ':</strong> N/A</li>';
+                    }
+                }
+                echo '</ul>';
+                ?>
+                <p class="mt-3"><a href="upload.php" class="btn btn-primary">Upload More Data</a></p>
+            <?php endif; ?>
         </div>
     </div>
 </div>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
-
