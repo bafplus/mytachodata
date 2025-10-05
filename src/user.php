@@ -1,12 +1,8 @@
 <?php
+require_once __DIR__ . '/inc/header.php';
 require_once __DIR__ . '/inc/db.php';
 
-// Start session before any output
-if (!isset($_SESSION)) {
-    session_start();
-}
-
-// Check if user is logged in
+// Get current user info
 $userId = $_SESSION['user_id'] ?? null;
 
 if (!$userId) {
@@ -36,79 +32,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
         $stmt = $pdo->prepare("UPDATE users SET password = ?, language = ? WHERE id = ?");
         if ($stmt->execute([$hashedPassword, $newLang, $userId])) {
-            $success = "Profile updated successfully!";
+            $success = $lang['profile_updated'] ?? "Profile updated successfully!";
             $user['language'] = $newLang;
+            $_SESSION['language'] = $newLang;
         } else {
-            $error = "Failed to update profile.";
+            $error = $lang['profile_update_failed'] ?? "Failed to update profile.";
         }
     } else {
         $stmt = $pdo->prepare("UPDATE users SET language = ? WHERE id = ?");
         if ($stmt->execute([$newLang, $userId])) {
-            $success = "Language updated successfully!";
+            $success = $lang['language_updated'] ?? "Language updated successfully!";
             $user['language'] = $newLang;
+            $_SESSION['language'] = $newLang;
         } else {
-            $error = "Failed to update language.";
+            $error = $lang['language_update_failed'] ?? "Failed to update language.";
         }
     }
 }
 
-// Load available languages
-$langFiles = glob(__DIR__ . '/lang/*.php'); // <-- adjusted path to root/lang
-$languages = array_map(fn($f) => basename($f, '.php'), $langFiles);
-$userLang = $user['language'] ?? 'en';
-
-// Now that logic is done, output header
 require_once __DIR__ . '/inc/header.php';
 require_once __DIR__ . '/inc/sidebar.php';
-?>
 
+// Load available languages
+$langFiles = glob(__DIR__ . '/lang/*.php');
+$languages = array_map(fn($f) => basename($f, '.php'), $langFiles);
+$userLang = $user['language'] ?? 'en';
+?>
 
 <div class="content-wrapper">
     <div class="content-header">
         <div class="container-fluid">
-            <h1 class="m-0">User Settings</h1>
+            <h1 class="m-0"><?= $lang['user_settings'] ?? 'User Settings' ?></h1>
         </div>
     </div>
 
     <div class="content">
         <div class="container-fluid">
-            <?php if ($success): ?>
+            <?php if ($success) : ?>
                 <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
             <?php endif; ?>
-            <?php if ($error): ?>
+            <?php if ($error) : ?>
                 <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
             <?php endif; ?>
 
             <form method="POST">
                 <div class="form-group">
-                    <label for="username">Username</label>
-                    <input type="text"
-                           id="username"
-                           name="username"
-                           class="form-control"
-                           value="<?= htmlspecialchars($user['username']) ?>"
+                    <label for="username"><?= $lang['username'] ?? 'Username' ?></label>
+                    <input type="text" 
+                           id="username" 
+                           name="username" 
+                           class="form-control" 
+                           value="<?= htmlspecialchars($user['username']) ?>" 
                            <?= $user['role'] !== 'admin' ? 'readonly' : '' ?>>
                 </div>
 
                 <div class="form-group">
-                    <label for="password">New Password</label>
-                    <input type="password" id="password" name="password" class="form-control" placeholder="Leave blank to keep current">
+                    <label for="password"><?= $lang['new_password'] ?? 'New Password' ?></label>
+                    <input type="password" id="password" name="password" class="form-control" placeholder="<?= $lang['password_placeholder'] ?? 'Leave blank to keep current' ?>">
                 </div>
 
                 <div class="form-group">
-                    <label for="language">Language</label>
+                    <label for="language"><?= $lang['language'] ?? 'Language' ?></label>
                     <select id="language" name="language" class="form-control">
-                        <?php foreach ($languages as $lang): ?>
-                            <option value="<?= $lang ?>" <?= $userLang === $lang ? 'selected' : '' ?>><?= strtoupper($lang) ?></option>
+                        <?php foreach ($languages as $langOption) : ?>
+                            <option value="<?= $langOption ?>" <?= $userLang === $langOption ? 'selected' : '' ?>>
+                                <?= strtoupper($langOption) ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
 
-                <button type="submit" class="btn btn-primary">Save Changes</button>
+                <button type="submit" class="btn btn-primary"><?= $lang['save_changes'] ?? 'Save Changes' ?></button>
             </form>
         </div>
     </div>
 </div>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
-
