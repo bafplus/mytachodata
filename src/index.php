@@ -8,50 +8,67 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $userId = intval($_SESSION['user_id']);
-
-$stmt = $pdo->prepare("SELECT id, username FROM users WHERE id = ?");
-$stmt->execute([$userId]);
-$user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-if (!$user) {
-    echo "User not found.";
-    exit;
-}
-
-require_once __DIR__ . '/inc/header.php';
-require_once __DIR__ . '/inc/sidebar.php';
-
-$dbHost = getenv('DB_HOST') ?: '127.0.0.1';
-$dbUser = getenv('DB_USER') ?: 'mytacho_user';
-$dbPass = getenv('DB_PASS') ?: 'mytacho_pass';
-$pdoOptions = [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
-];
-
 $userDbName = "mytacho_user_" . $userId;
 
+// Connect to user DB
 try {
-    $dbExistsStmt = $pdo->query("SHOW DATABASES LIKE '{$userDbName}'");
-    $dbExists = $dbExistsStmt->rowCount() > 0;
+    $userPdo = new PDO(
+        "mysql:host={$dbHost};dbname={$userDbName};charset=utf8mb4",
+        $dbUser,
+        $dbPass,
+        $pdoOptions
+    );
+    $userPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (PDOException $e) {
-    $dbExists = false;
+    die("Could not connect to user database: " . htmlspecialchars($e->getMessage()));
 }
 
-$userPdo = null;
-if ($dbExists) {
-    try {
-        $userPdo = new PDO(
-            "mysql:host={$dbHost};dbname={$userDbName};charset=utf8mb4",
-            $dbUser,
-            $dbPass,
-            $pdoOptions
-        );
-    } catch (PDOException $e) {
-        die("<div class='alert alert-danger'>Could not connect to user database: " . htmlspecialchars($e->getMessage()) . "</div>");
+// --- Dashboard counts ---
+$counts = [
+    'unique_vehicles' => 0,
+    'events' => 0,
+    'faults' => 0,
+    'driver_activity' => 0
+];
+
+// Unique Vehicles
+$vehiclesTables = ['card_vehicles_used_1','card_vehicles_used_2','card_vehicle_units_used'];
+$uniqueVehicles = [];
+foreach ($vehiclesTables as $tbl) {
+    $sql = "SELECT JSON_UNQUOTE(JSON_EXTRACT(raw, '$.vehicle_registration_number')) AS reg FROM `{$tbl}`";
+    foreach ($userPdo->query($sql) as $row) {
+        if (!empty($row['reg'])) $uniqueVehicles[$row['reg']] = true;
     }
 }
+$counts['unique_vehicles'] = count($uniqueVehicles);
+
+// Events
+$eventTables = ['card_event_data_1','card_event_data_2','card_place_daily_work_period_1','card_place_daily_work_period_2'];
+$counts['events'] = 0;
+foreach ($eventTables as $tbl) {
+    $res = $userPdo->query("SELECT COUNT(*) AS cnt FROM `{$tbl}`")->fetch(PDO::FETCH_ASSOC);
+    $counts['events'] += $res['cnt'] ?? 0;
+}
+
+// Faults
+$faultTables = ['card_fault_data_1','card_fault_data_2'];
+$counts['faults'] = 0;
+foreach ($faultTables as $tbl) {
+    $res = $userPdo->query("SELECT COUNT(*) AS cnt FROM `{$tbl}`")->fetch(PDO::FETCH_ASSOC);
+    $counts['faults'] += $res['cnt'] ?? 0;
+}
+
+// Driver Activity
+$activityTables = ['card_driver_activity_1','card_driver_activity_2'];
+$counts['driver_activity'] = 0;
+foreach ($activityTables as $tbl) {
+    $res = $userPdo->query("SELECT COUNT(*) AS cnt FROM `{$tbl}`")->fetch(PDO::FETCH_ASSOC);
+    $counts['driver_activity'] += $res['cnt'] ?? 0;
+}
+
+// Include header and sidebar
+require_once __DIR__ . '/inc/header.php';
+require_once __DIR__ . '/inc/sidebar.php';
 ?>
 
 <div class="content-wrapper">
@@ -63,84 +80,52 @@ if ($dbExists) {
 
     <div class="content">
         <div class="container-fluid">
-            <p>Welcome, <?= htmlspecialchars($user['username']) ?>!</p>
-
-            <?php if (!$dbExists): ?>
-                <div class="alert alert-info">
-                    No data imported yet. Please <a href="upload.php">upload a DDD file</a> to start.
-                </div>
-            <?php else: ?>
-                <?php
-                // Fetch only key summary data
-                $summary = [
-                    'total_records' => 0,
-                    'events_faults' => 0,
-                    'vehicles_used' => 0,
-                    'last_card_download' => null
-                ];
-
-                $tables = $userPdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
-
-                foreach ($tables as $table) {
-                    $count = $userPdo->query("SELECT COUNT(*) FROM `{$table}`")->fetchColumn();
-                    $summary['total_records'] += $count;
-
-                    if (strpos($table, 'card_event_data') !== false || strpos($table, 'card_fault_data') !== false) {
-                        $summary['events_faults'] += $count;
-                    }
-
-                    if (strpos($table, 'card_vehicles_used') !== false) {
-                        $summary['vehicles_used'] += $count;
-                    }
-
-                    if (strpos($table, 'last_card_download') !== false) {
-                        $last = $userPdo->query("SELECT MAX(`timestamp`) FROM `{$table}`")->fetchColumn();
-                        if ($last) $summary['last_card_download'] = $last;
-                    }
-                }
-                ?>
-
-                <div class="row">
-                    <div class="col-md-3">
-                        <div class="small-box bg-primary">
-                            <div class="inner">
-                                <h3><?= $summary['total_records'] ?></h3>
-                                <p>Total Records</p>
-                            </div>
-                            <div class="icon"><i class="fas fa-database"></i></div>
+            <div class="row">
+                <!-- Unique Vehicles -->
+                <div class="col-lg-3 col-6">
+                    <div class="small-box bg-info">
+                        <div class="inner">
+                            <h3><?= $counts['unique_vehicles'] ?></h3>
+                            <p>Unique Vehicles Used</p>
                         </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="small-box bg-warning">
-                            <div class="inner">
-                                <h3><?= $summary['events_faults'] ?></h3>
-                                <p>Events & Faults</p>
-                            </div>
-                            <div class="icon"><i class="fas fa-exclamation-triangle"></i></div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="small-box bg-success">
-                            <div class="inner">
-                                <h3><?= $summary['vehicles_used'] ?></h3>
-                                <p>Vehicles Used</p>
-                            </div>
-                            <div class="icon"><i class="fas fa-truck"></i></div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="small-box bg-info">
-                            <div class="inner">
-                                <h3><?= $summary['last_card_download'] ?? '-' ?></h3>
-                                <p>Last Card Download</p>
-                            </div>
-                            <div class="icon"><i class="fas fa-calendar-alt"></i></div>
-                        </div>
+                        <div class="icon"><i class="fas fa-truck"></i></div>
                     </div>
                 </div>
-            <?php endif; ?>
+                <!-- Events -->
+                <div class="col-lg-3 col-6">
+                    <div class="small-box bg-success">
+                        <div class="inner">
+                            <h3><?= $counts['events'] ?></h3>
+                            <p>Events</p>
+                        </div>
+                        <div class="icon"><i class="fas fa-calendar-alt"></i></div>
+                    </div>
+                </div>
+                <!-- Faults -->
+                <div class="col-lg-3 col-6">
+                    <div class="small-box bg-danger">
+                        <div class="inner">
+                            <h3><?= $counts['faults'] ?></h3>
+                            <p>Faults</p>
+                        </div>
+                        <div class="icon"><i class="fas fa-exclamation-triangle"></i></div>
+                    </div>
+                </div>
+                <!-- Driver Activity -->
+                <div class="col-lg-3 col-6">
+                    <div class="small-box bg-warning">
+                        <div class="inner">
+                            <h3><?= $counts['driver_activity'] ?></h3>
+                            <p>Driver Activity Records</p>
+                        </div>
+                        <div class="icon"><i class="fas fa-user-clock"></i></div>
+                    </div>
+                </div>
+            </div>
+            <p>Welcome, <?= htmlspecialchars($_SESSION['username'] ?? 'User') ?>! This is your MyTacho dashboard.</p>
         </div>
     </div>
 </div>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
+
