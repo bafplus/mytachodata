@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/inc/db.php';
-require_once __DIR__ . '/inc/lang.php'; // optional if you want translations
+require_once __DIR__ . '/inc/lang.php'; // optional for translations
 
 // Start session
 if (!isset($_SESSION)) session_start();
@@ -10,6 +10,15 @@ if (isset($_SESSION['user_id'])) {
     header('Location: index.php');
     exit;
 }
+
+// Check if registration is allowed
+$stmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = 'allow_registration'");
+$stmt->execute();
+$allowRegistration = $stmt->fetchColumn() === '1';
+
+// Prefill username and success message from registration
+$prefillUsername = $_GET['username'] ?? '';
+$registrationSuccess = isset($_GET['registered']);
 
 $error = '';
 
@@ -32,10 +41,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: index.php');
             exit;
         } else {
-            $error = "Incorrect username or password.";
+            $error = $lang['incorrect_username_password'] ?? "Incorrect username or password.";
         }
     } else {
-        $error = "Please enter both username and password.";
+        $error = $lang['username_password_required'] ?? "Please enter both username and password.";
     }
 }
 ?>
@@ -45,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - MyTacho</title>
+    <title><?= $lang['login_title'] ?? 'Login - MyTacho' ?></title>
     <!-- AdminLTE CSS -->
     <link rel="stylesheet" href="/adminlte/plugins/fontawesome-free/css/all.min.css">
     <link rel="stylesheet" href="/adminlte/dist/css/adminlte.min.css">
@@ -67,7 +76,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <a href="#" class="h1"><b>My</b>Tacho</a>
         </div>
         <div class="card-body">
-            <p class="login-box-msg">Sign in to start your session</p>
+            <p class="login-box-msg"><?= $lang['login_msg'] ?? 'Sign in to start your session' ?></p>
+
+            <?php if ($registrationSuccess): ?>
+                <div class="alert alert-success"><?= $lang['registration_success'] ?? 'Registration successful! You can now log in.' ?></div>
+            <?php endif; ?>
 
             <?php if ($error): ?>
                 <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
@@ -75,29 +88,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <form method="POST">
                 <div class="input-group mb-3">
-                    <input type="text" name="username" class="form-control" placeholder="Username" required>
+                    <input type="text" name="username" class="form-control" placeholder="<?= $lang['username'] ?? 'Username' ?>" required
+                           value="<?= htmlspecialchars($prefillUsername) ?>">
                     <div class="input-group-append">
-                        <div class="input-group-text">
-                            <span class="fas fa-user"></span>
-                        </div>
+                        <div class="input-group-text"><span class="fas fa-user"></span></div>
                     </div>
                 </div>
 
                 <div class="input-group mb-3">
-                    <input type="password" name="password" class="form-control" placeholder="Password" required>
+                    <input type="password" name="password" class="form-control" placeholder="<?= $lang['password'] ?? 'Password' ?>" required>
                     <div class="input-group-append">
-                        <div class="input-group-text">
-                            <span class="fas fa-lock"></span>
-                        </div>
+                        <div class="input-group-text"><span class="fas fa-lock"></span></div>
                     </div>
                 </div>
 
                 <div class="row">
                     <div class="col-12">
-                        <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+                        <button type="submit" class="btn btn-primary btn-block"><?= $lang['sign_in'] ?? 'Sign In' ?></button>
                     </div>
                 </div>
             </form>
+
+            <?php if ($allowRegistration): ?>
+                <p class="mt-3 mb-1 text-center">
+                    <a href="register.php"><?= $lang['no_account_register'] ?? 'No account yet? Register' ?></a>
+                </p>
+            <?php endif; ?>
         </div>
     </div>
 </div>
@@ -108,3 +124,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script src="/adminlte/dist/js/adminlte.min.js"></script>
 </body>
 </html>
+
