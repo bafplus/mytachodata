@@ -61,8 +61,8 @@ $support_email = $settings['support_email'] ?? 'support@mytacho.com';
 <body class="hold-transition sidebar-mini">
 <div class="wrapper">
 
-  <?php include "/inc/header.php"; ?>
-  <?php include "/inc/sidebar.php"; ?>
+  <?php require_once __DIR__ . '/inc/header.php'; ?>
+  <?php require_once __DIR__ . '/inc/sidebar.php'; ?>
 
   <div class="content-wrapper">
     <section class="content-header">
@@ -128,7 +128,7 @@ $support_email = $settings['support_email'] ?? 'support@mytacho.com';
     </section>
   </div>
 
-  <?php include "/inc/footer.php"; ?>
+  <?php require_once __DIR__ . '/inc/footer.php'; ?>
 
 </div>
 
