@@ -17,7 +17,7 @@
           </a>
         </li>
         <li class="nav-item">
-          <a href="upload-raw.php" class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'upload-raw.php' ? 'active' : ''; ?>">
+          <a href="upload.php" class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'upload.php' ? 'active' : ''; ?>">
             <i class="nav-icon fas fa-upload"></i>
             <p>Upload DDD</p>
           </a>
