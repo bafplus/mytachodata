@@ -21,7 +21,7 @@ $pdoOptions = [
     PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
 ];
 
-// Try to connect to per-user DB
+// Connect to per-user DB
 try {
     $userPdo = new PDO(
         "mysql:host={$dbHost};dbname={$userDbName};charset=utf8mb4",
@@ -33,22 +33,47 @@ try {
     die("Could not connect to user database: " . htmlspecialchars($e->getMessage()));
 }
 
-// Fetch all activities
-$activities = [];
+// Fetch all activity rows
+$activityRows = [];
 try {
-    $stmt = $userPdo->query("
-        SELECT 
-            JSON_UNQUOTE(JSON_EXTRACT(raw,'$.start_time')) AS start_time,
-            JSON_UNQUOTE(JSON_EXTRACT(raw,'$.end_time')) AS end_time,
-            JSON_UNQUOTE(JSON_EXTRACT(raw,'$.activity_type')) AS activity_type,
-            JSON_UNQUOTE(JSON_EXTRACT(raw,'$.vehicle_registration_number')) AS vehicle
-        FROM card_driver_activity_1
-        ORDER BY start_time ASC
-    ");
-    $activities = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt = $userPdo->query("SELECT raw, timestamp FROM card_driver_activity_1 ORDER BY timestamp DESC");
+    $activityRows = $stmt->fetchAll();
 } catch (PDOException $e) {
-    die("Error fetching activities: " . $e->getMessage());
+    die("Error fetching activities: " . htmlspecialchars($e->getMessage()));
 }
+
+// Flatten all activity segments
+$activities = [];
+foreach ($activityRows as $row) {
+    $raw = json_decode($row['raw'], true);
+    if (!$raw || !isset($raw['activity_change_info'])) continue;
+
+    $previousMinutes = 0;
+    foreach ($raw['activity_change_info'] as $segment) {
+        $startMinutes = $previousMinutes;
+        $endMinutes = $segment['minutes'];
+
+        $activities[] = [
+            'date' => substr($raw['activity_record_date'], 0, 10),
+            'start_time' => sprintf('%02d:%02d', intdiv($startMinutes, 60), $startMinutes % 60),
+            'end_time' => sprintf('%02d:%02d', intdiv($endMinutes, 60), $endMinutes % 60),
+            'activity_type' => $segment['work_type'],
+            'driver_present' => $segment['driver'] ? 'Yes' : 'No',
+            'team_present' => $segment['team'] ? 'Yes' : 'No',
+            'card_present' => $segment['card_present'] ? 'Yes' : 'No'
+        ];
+
+        $previousMinutes = $endMinutes;
+    }
+}
+
+// Map work_type numbers to labels
+$activityLabels = [
+    0 => 'Rest/Unknown',
+    1 => 'Available',
+    2 => 'Driving',
+    3 => 'Other Work'
+];
 
 // Include layout
 require_once __DIR__ . '/inc/header.php';
@@ -70,19 +95,25 @@ require_once __DIR__ . '/inc/sidebar.php';
                 <table class="table table-bordered table-striped">
                     <thead>
                         <tr>
-                            <th>Start Time</th>
-                            <th>End Time</th>
+                            <th>Date</th>
+                            <th>Start</th>
+                            <th>End</th>
                             <th>Activity Type</th>
-                            <th>Vehicle Registration</th>
+                            <th>Driver Present</th>
+                            <th>Team Present</th>
+                            <th>Card Present</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($activities as $act): ?>
                             <tr>
-                                <td><?= htmlspecialchars($act['start_time'] ?? '') ?></td>
-                                <td><?= htmlspecialchars($act['end_time'] ?? '') ?></td>
-                                <td><?= htmlspecialchars($act['activity_type'] ?? '') ?></td>
-                                <td><?= htmlspecialchars($act['vehicle'] ?? '') ?></td>
+                                <td><?= htmlspecialchars($act['date']) ?></td>
+                                <td><?= htmlspecialchars($act['start_time']) ?></td>
+                                <td><?= htmlspecialchars($act['end_time']) ?></td>
+                                <td><?= htmlspecialchars($activityLabels[$act['activity_type']] ?? 'Unknown') ?></td>
+                                <td><?= htmlspecialchars($act['driver_present']) ?></td>
+                                <td><?= htmlspecialchars($act['team_present']) ?></td>
+                                <td><?= htmlspecialchars($act['card_present']) ?></td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
