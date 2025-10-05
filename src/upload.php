@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/inc/db.php';
-require_once __DIR__ . '/inc/lang.php'; 
+require_once __DIR__ . '/inc/lang.php';
 
 if (!isset($_SESSION)) session_start();
 
@@ -17,7 +17,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
     if ($_FILES['ddd_file']['error'] === UPLOAD_ERR_OK) {
         $tmpPath = $_FILES['ddd_file']['tmp_name'];
 
-        // Run parser
         $cmd = escapeshellcmd("dddparser -card -input " . escapeshellarg($tmpPath) . " -format");
         $jsonOutput = shell_exec($cmd);
 
@@ -28,30 +27,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
             } else {
                 $_SESSION['import_data'] = $data;
 
-                // Calculate summary from event data
-                $events = $data['card_event_data_1']['card_event_records_array'] ?? [];
-                $recordCount = 0;
-                $startTime = null;
-                $endTime = null;
-
-                foreach ($events as $eventGroup) {
-                    foreach ($eventGroup['card_event_records'] as $event) {
-                        $begin = $event['event_begin_time'] ?? null;
-                        $end = $event['event_end_time'] ?? null;
-                        if ($begin) {
-                            $recordCount++;
-                            $timestamp = strtotime($begin);
-                            if (!$startTime || $timestamp < $startTime) $startTime = $timestamp;
-                            if (!$endTime || $timestamp > $endTime) $endTime = $timestamp;
+                // --- Extract events from nested structure ---
+                $records = [];
+                if (isset($data['card_event_data_1']['card_event_records_array'])) {
+                    foreach ($data['card_event_data_1']['card_event_records_array'] as $arrayItem) {
+                        if (!empty($arrayItem['card_event_records']) && is_array($arrayItem['card_event_records'])) {
+                            foreach ($arrayItem['card_event_records'] as $event) {
+                                if (!empty($event['event_begin_time'])) {
+                                    $records[] = [
+                                        'event_type' => $event['event_type'] ?? null,
+                                        'timestamp' => $event['event_begin_time'],
+                                        'vehicle_number' => $event['event_vehicle_registration']['vehicle_registration_number'] ?? null,
+                                        'additional' => $event
+                                    ];
+                                }
+                            }
                         }
                     }
                 }
 
+                $recordCount = count($records);
+                $startTime = $recordCount ? $records[0]['timestamp'] : null;
+                $endTime = $recordCount ? end($records)['timestamp'] : null;
+
                 $summary = [
                     'records' => $recordCount,
-                    'start' => $startTime ? date('Y-m-d H:i:s', $startTime) : '-',
-                    'end' => $endTime ? date('Y-m-d H:i:s', $endTime) : '-'
+                    'start' => $startTime,
+                    'end' => $endTime
                 ];
+
+                $_SESSION['import_records'] = $records; // Store simplified events for import
             }
         } else {
             $error = $lang['parser_failed'] ?? 'Parser execution failed or returned no output.';
@@ -105,11 +110,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
                         </div>
                         <div class="card-body">
                             <p><?= sprintf($lang['records_found'] ?? 'Records found: %d', $summary['records']) ?></p>
-                            <p><?= sprintf($lang['time_range'] ?? 'Time range: %s - %s', $summary['start'], $summary['end']) ?></p>
+                            <p><?= sprintf($lang['time_range'] ?? 'Time range: %s - %s', $summary['start'] ?? '-', $summary['end'] ?? '-') ?></p>
                             <a href="import_execute.php" class="btn btn-success"><?= $lang['confirm_import'] ?? 'Confirm Import' ?></a>
                         </div>
                     </div>
                 <?php endif; ?>
+
             </div>
         </section>
     </div>
@@ -122,3 +128,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
 <script src="/adminlte/dist/js/adminlte.min.js"></script>
 </body>
 </html>
+
