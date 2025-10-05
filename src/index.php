@@ -31,7 +31,6 @@ try {
     );
 } catch (PDOException $e) {
     if (strpos($e->getMessage(), 'Unknown database') !== false) {
-        // Friendly message if no data yet
         require_once __DIR__ . '/inc/header.php';
         require_once __DIR__ . '/inc/sidebar.php';
         echo "<div class='content-wrapper'>
@@ -54,24 +53,37 @@ try {
 $summary = [];
 
 try {
-    // Count vehicles used
-    $stmt = $userPdo->query("SELECT COUNT(DISTINCT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.vehicle_registration_number'))) AS vehicles FROM card_vehicles_used_1");
-    $summary['vehicles'] = $stmt->fetchColumn() ?: 0;
+    // Unique vehicles used
+    $stmt = $userPdo->query("
+        SELECT COUNT(DISTINCT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.vehicle_registration_number'))) AS vehicles
+        FROM card_vehicles_used_1
+    ");
+    $summary['vehicles'] = intval($stmt->fetchColumn() ?: 0);
 
-    // Count events
+    // Total events
     $stmt = $userPdo->query("SELECT COUNT(*) FROM card_event_data_1");
-    $summary['events'] = $stmt->fetchColumn() ?: 0;
+    $summary['events'] = intval($stmt->fetchColumn() ?: 0);
 
-    // Count faults
+    // Total faults
     $stmt = $userPdo->query("SELECT COUNT(*) FROM card_fault_data_1");
-    $summary['faults'] = $stmt->fetchColumn() ?: 0;
+    $summary['faults'] = intval($stmt->fetchColumn() ?: 0);
 
-    // Driver info (take first record)
-    $stmt = $userPdo->query("SELECT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.driver_name')) AS driver FROM driver_card_application_identification_1 LIMIT 1");
+    // Driver info (take first non-empty name)
+    $stmt = $userPdo->query("
+        SELECT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.driver_name')) AS driver
+        FROM driver_card_application_identification_1
+        WHERE JSON_UNQUOTE(JSON_EXTRACT(raw,'$.driver_name')) IS NOT NULL
+        LIMIT 1
+    ");
     $summary['driver'] = $stmt->fetchColumn() ?: 'Unknown';
 
     // Card number
-    $stmt = $userPdo->query("SELECT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.card_number')) AS card_number FROM card_icc_identification_1 LIMIT 1");
+    $stmt = $userPdo->query("
+        SELECT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.card_number')) AS card_number
+        FROM card_icc_identification_1
+        WHERE JSON_UNQUOTE(JSON_EXTRACT(raw,'$.card_number')) IS NOT NULL
+        LIMIT 1
+    ");
     $summary['card'] = $stmt->fetchColumn() ?: 'Unknown';
 
 } catch (PDOException $e) {
@@ -123,8 +135,8 @@ require_once __DIR__ . '/inc/sidebar.php';
                 <div class="col-lg-3 col-6">
                     <div class="small-box bg-warning">
                         <div class="inner">
-                            <h3><?= intval($summary['vehicles']) ?></h3>
-                            <p>Vehicles Used</p>
+                            <h3><?= $summary['vehicles'] ?></h3>
+                            <p>Unique Vehicles Used</p>
                         </div>
                         <div class="icon">
                             <i class="fas fa-truck"></i>
@@ -136,7 +148,7 @@ require_once __DIR__ . '/inc/sidebar.php';
                 <div class="col-lg-3 col-6">
                     <div class="small-box bg-danger">
                         <div class="inner">
-                            <h3><?= intval($summary['events']) ?></h3>
+                            <h3><?= $summary['events'] ?></h3>
                             <p>Events Recorded</p>
                         </div>
                         <div class="icon">
@@ -152,7 +164,7 @@ require_once __DIR__ . '/inc/sidebar.php';
                 <div class="col-lg-3 col-6">
                     <div class="small-box bg-secondary">
                         <div class="inner">
-                            <h3><?= intval($summary['faults']) ?></h3>
+                            <h3><?= $summary['faults'] ?></h3>
                             <p>Faults</p>
                         </div>
                         <div class="icon">
