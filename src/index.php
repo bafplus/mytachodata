@@ -50,33 +50,9 @@ try {
 }
 
 // Fetch summary statistics for dashboard
-$summary = [
-    'driver' => 'Unknown',
-    'card' => 'Unknown',
-    'vehicles' => 0,
-    'events' => 0,
-    'faults' => 0
-];
+$summary = [];
 
 try {
-    // Driver info
-    $stmt = $userPdo->query("
-        SELECT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.driver_name')) AS driver
-        FROM driver_card_application_identification_1
-        WHERE JSON_UNQUOTE(JSON_EXTRACT(raw,'$.driver_name')) IS NOT NULL
-        LIMIT 1
-    ");
-    $summary['driver'] = $stmt->fetchColumn() ?: 'Unknown';
-
-    // Card number
-    $stmt = $userPdo->query("
-        SELECT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.card_number')) AS card_number
-        FROM card_icc_identification_1
-        WHERE JSON_UNQUOTE(JSON_EXTRACT(raw,'$.card_number')) IS NOT NULL
-        LIMIT 1
-    ");
-    $summary['card'] = $stmt->fetchColumn() ?: 'Unknown';
-
     // Unique vehicles used
     $stmt = $userPdo->query("
         SELECT COUNT(DISTINCT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.vehicle_registration_number'))) AS vehicles
@@ -91,6 +67,24 @@ try {
     // Total faults
     $stmt = $userPdo->query("SELECT COUNT(*) FROM card_fault_data_1");
     $summary['faults'] = intval($stmt->fetchColumn() ?: 0);
+
+    // Driver info (nested path)
+    $stmt = $userPdo->query("
+        SELECT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.driver.driver_name')) AS driver
+        FROM driver_card_application_identification_1
+        WHERE JSON_UNQUOTE(JSON_EXTRACT(raw,'$.driver.driver_name')) IS NOT NULL
+        LIMIT 1
+    ");
+    $summary['driver'] = $stmt->fetchColumn() ?: 'Unknown';
+
+    // Card number (nested path)
+    $stmt = $userPdo->query("
+        SELECT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.card.card_number')) AS card_number
+        FROM card_icc_identification_1
+        WHERE JSON_UNQUOTE(JSON_EXTRACT(raw,'$.card.card_number')) IS NOT NULL
+        LIMIT 1
+    ");
+    $summary['card'] = $stmt->fetchColumn() ?: 'Unknown';
 
 } catch (PDOException $e) {
     // ignore errors in case tables don't exist yet
@@ -162,6 +156,7 @@ require_once __DIR__ . '/inc/sidebar.php';
                         </div>
                     </div>
                 </div>
+
             </div>
 
             <div class="row">
