@@ -40,6 +40,7 @@ ADMIN_HASH=$(php -r "echo password_hash('admin', PASSWORD_DEFAULT);")
 
 mysql -u root <<-EOSQL
 USE ${DB_NAME};
+
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
@@ -52,7 +53,36 @@ CREATE TABLE IF NOT EXISTS users (
 INSERT INTO users (username, password, role, language)
 SELECT 'admin', '${ADMIN_HASH}', 'admin', 'en'
 WHERE NOT EXISTS (SELECT 1 FROM users WHERE username='admin');
+
+# Create settings table for admin.php
+CREATE TABLE IF NOT EXISTS settings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    setting_key VARCHAR(100) NOT NULL UNIQUE,
+    setting_value TEXT
+);
+
+# Insert default settings if not exist
+INSERT INTO settings (setting_key, setting_value)
+SELECT 'site_name', 'MyTacho'
+WHERE NOT EXISTS (SELECT 1 FROM settings WHERE setting_key='site_name');
+
+INSERT INTO settings (setting_key, setting_value)
+SELECT 'default_language', 'en'
+WHERE NOT EXISTS (SELECT 1 FROM settings WHERE setting_key='default_language');
+
+INSERT INTO settings (setting_key, setting_value)
+SELECT 'maintenance_mode', '0'
+WHERE NOT EXISTS (SELECT 1 FROM settings WHERE setting_key='maintenance_mode');
+
+INSERT INTO settings (setting_key, setting_value)
+SELECT 'allow_registration', '0'
+WHERE NOT EXISTS (SELECT 1 FROM settings WHERE setting_key='allow_registration');
+
+INSERT INTO settings (setting_key, setting_value)
+SELECT 'support_email', 'support@mytacho.com'
+WHERE NOT EXISTS (SELECT 1 FROM settings WHERE setting_key='support_email');
 EOSQL
+
 
 # Start Apache in foreground
 exec apache2-foreground
