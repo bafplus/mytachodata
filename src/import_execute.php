@@ -2,89 +2,82 @@
 require_once __DIR__ . '/inc/db.php';
 require_once __DIR__ . '/inc/lang.php';
 
-// Start session
 if (!isset($_SESSION)) session_start();
-
-// Check login
-if (!isset($_SESSION['user_id'])) {
-    header('Location: login.php');
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['import_data'])) {
+    header('Location: upload.php');
     exit;
 }
 
 $userId = $_SESSION['user_id'];
+$data = $_SESSION['import_data'];
 $error = '';
-$imported = 0;
+$importedCount = 0;
 
-// Check if import data exists
-if (!isset($_SESSION['import_data'])) {
-    $error = $lang['no_import_data'] ?? 'No import data found in session.';
-} else {
-    $data = $_SESSION['import_data'];
+// Define per-user table
+$tableName = "events_user_" . intval($userId);
 
-    // Flatten card event data
+try {
+    // Create table if it doesn't exist
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS `$tableName` (
+            `id` INT AUTO_INCREMENT PRIMARY KEY,
+            `event_type` INT,
+            `timestamp` DATETIME,
+            `vehicle_number` VARCHAR(50),
+            `raw_json` JSON
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ");
+
+    // Flatten card_event_records
     $flatRecords = [];
     if (!empty($data['card_event_data_1']['card_event_records_array'])) {
         foreach ($data['card_event_data_1']['card_event_records_array'] as $block) {
-            foreach ($block['card_event_records'] as $rec) {
-                $flatRecords[] = [
-                    'event_type' => $rec['event_type'] ?? null,
-                    'timestamp' => $rec['event_begin_time'] ?? null,
-                    'vehicle_number' => $rec['event_vehicle_registration']['vehicle_registration_number'] ?? '',
-                    'raw_json' => $rec
-                ];
-            }
-        }
-    }
-
-    if (!empty($flatRecords)) {
-        // Create per-user table if not exists
-        $tableName = "events_user_" . intval($userId);
-        $createSQL = "CREATE TABLE IF NOT EXISTS `$tableName` (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            event_type INT,
-            timestamp DATETIME,
-            vehicle_number VARCHAR(20),
-            raw_json JSON
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
-
-        $pdo->exec($createSQL);
-
-        try {
-            $pdo->beginTransaction();
-
-            $insertSQL = "INSERT INTO `$tableName` (event_type, timestamp, vehicle_number, raw_json)
-                          VALUES (:event_type, :timestamp, :vehicle_number, :raw_json)";
-            $insertStmt = $pdo->prepare($insertSQL);
-
-            foreach ($flatRecords as $r) {
-                // Convert ISO 8601 to MySQL DATETIME
-                $ts = $r['timestamp'] ?? null;
-                if ($ts) {
-                    $ts = str_replace('T', ' ', $ts);
-                    $ts = str_replace('Z', '', $ts);
+            if (!empty($block['card_event_records'])) {
+                foreach ($block['card_event_records'] as $rec) {
+                    $timestamp = $rec['event_begin_time'] ?? null;
+                    if ($timestamp) { // skip null timestamps
+                        // Convert ISO8601 to MySQL DATETIME
+                        $dt = date('Y-m-d H:i:s', strtotime($timestamp));
+                        $flatRecords[] = [
+                            'event_type' => $rec['event_type'] ?? null,
+                            'timestamp' => $dt,
+                            'vehicle_number' => $rec['event_vehicle_registration']['vehicle_registration_number'] ?? '',
+                            'raw_json' => json_encode($rec)
+                        ];
+                    }
                 }
-
-                $insertStmt->execute([
-                    ':event_type' => $r['event_type'],
-                    ':timestamp' => $ts,
-                    ':vehicle_number' => $r['vehicle_number'],
-                    ':raw_json' => json_encode($r['raw_json'])
-                ]);
-                $imported++;
             }
-
-            $pdo->commit();
-
-            // Clear import data from session
-            unset($_SESSION['import_data']);
-
-        } catch (PDOException $e) {
-            $pdo->rollBack();
-            $error = $lang['import_failed'] ?? 'Import failed: ' . $e->getMessage();
         }
-    } else {
-        $error = $lang['no_records_found'] ?? 'No records to import.';
     }
+
+    if (empty($flatRecords)) {
+        $error = $lang['no_records_to_import'] ?? "No records to import.";
+    } else {
+        // Insert into DB
+        $pdo->beginTransaction();
+        $stmt = $pdo->prepare("
+            INSERT INTO `$tableName` (`event_type`, `timestamp`, `vehicle_number`, `raw_json`)
+            VALUES (:event_type, :timestamp, :vehicle_number, :raw_json)
+        ");
+
+        foreach ($flatRecords as $rec) {
+            $stmt->execute([
+                ':event_type' => $rec['event_type'],
+                ':timestamp' => $rec['timestamp'],
+                ':vehicle_number' => $rec['vehicle_number'],
+                ':raw_json' => $rec['raw_json']
+            ]);
+            $importedCount++;
+        }
+        $pdo->commit();
+
+        // Clear session import data
+        unset($_SESSION['import_data']);
+    }
+
+} catch (PDOException $e) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    $error = $lang['import_failed'] ?? "Import failed: " . $e->getMessage();
 }
 ?>
 
@@ -109,11 +102,10 @@ if (!isset($_SESSION['import_data'])) {
                     <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
                 <?php else: ?>
                     <div class="alert alert-success">
-                        <?= sprintf($lang['import_success'] ?? 'Successfully imported %d records.', $imported) ?>
+                        <?= sprintf($lang['records_imported'] ?? '%d records successfully imported.', $importedCount) ?>
                     </div>
                 <?php endif; ?>
-
-                <a href="upload.php" class="btn btn-primary"><?= $lang['back_to_upload'] ?? 'Back to Upload' ?></a>
+                <a href="upload.php" class="btn btn-primary mt-3"><?= $lang['back_to_upload'] ?? 'Back to Upload' ?></a>
             </div>
         </section>
     </div>
@@ -126,4 +118,5 @@ if (!isset($_SESSION['import_data'])) {
 <script src="/adminlte/dist/js/adminlte.min.js"></script>
 </body>
 </html>
+
 
