@@ -39,26 +39,37 @@ if (file_exists($langFile)) {
       </li>
     </ul>
 
-    <!-- Right navbar links -->
-    <ul class="navbar-nav ml-auto">
-      <!-- Theme toggle -->
-      <li class="nav-item">
-        <a href="#" id="theme-toggle" class="nav-link" title="<?= htmlspecialchars($lang['nav_toggle_theme'] ?? 'Toggle Light/Dark') ?>">
-          <i class="fas fa-adjust"></i>
-        </a>
-      </li>
-      <!-- User page -->
-      <li class="nav-item">
-        <a href="user.php" class="nav-link" title="<?= htmlspecialchars($lang['nav_user'] ?? 'User Page') ?>">
-          <i class="fas fa-user"></i>
-        </a>
-      </li>
-      <!-- Logout -->
-      <li class="nav-item">
-        <a href="logout.php" class="nav-link" title="<?= htmlspecialchars($lang['nav_logout'] ?? 'Logout') ?>">
-          <i class="fas fa-sign-out-alt"></i>
-        </a>
-      </li>
-    </ul>
+<!-- Right navbar links -->
+<ul class="navbar-nav ml-auto">
+  <!-- Theme toggle -->
+  <li class="nav-item">
+    <a href="#" id="theme-toggle" class="nav-link" title="<?= htmlspecialchars($lang['nav_toggle_theme'] ?? 'Toggle Light/Dark') ?>">
+      <i class="fas fa-adjust"></i>
+    </a>
+  </li>
+
+  <!-- Admin button (only visible to admin) -->
+  <?php if (isset($_SESSION['user_id']) && $_SESSION['role'] === 'admin'): ?>
+    <li class="nav-item">
+      <a href="admin.php" class="nav-link" title="<?= htmlspecialchars($lang['nav_admin'] ?? 'Admin Settings') ?>">
+        <i class="fas fa-cog"></i>
+      </a>
+    </li>
+  <?php endif; ?>
+
+  <!-- User page -->
+  <li class="nav-item">
+    <a href="user.php" class="nav-link" title="<?= htmlspecialchars($lang['nav_user'] ?? 'User Page') ?>">
+      <i class="fas fa-user"></i>
+    </a>
+  </li>
+
+  <!-- Logout -->
+  <li class="nav-item">
+    <a href="logout.php" class="nav-link" title="<?= htmlspecialchars($lang['nav_logout'] ?? 'Logout') ?>">
+      <i class="fas fa-sign-out-alt"></i>
+    </a>
+  </li>
+</ul>
   </nav>
   <!-- /.navbar -->
