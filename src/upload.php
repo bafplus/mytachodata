@@ -32,10 +32,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
                 // Store parsed data in session for later confirmation/import
                 $_SESSION['import_data'] = $data;
 
-                // Generate summary
-                $recordCount = count($data['records'] ?? []);
-                $startTime = $data['records'][0]['timestamp'] ?? null;
-                $endTime = end($data['records'])['timestamp'] ?? null;
+                // Safe summary generation
+                $records = $data['records'] ?? [];
+                $recordCount = count($records);
+                $startTime = $records[0]['timestamp'] ?? null;
+                $endTime = !empty($records) ? end($records)['timestamp'] : null;
 
                 $summary = [
                     'records' => $recordCount,
@@ -95,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
                         </div>
                         <div class="card-body">
                             <p><?= sprintf($lang['records_found'] ?? 'Records found: %d', $summary['records']) ?></p>
-                            <p><?= sprintf($lang['time_range'] ?? 'Time range: %s - %s', $summary['start'], $summary['end']) ?></p>
+                            <p><?= sprintf($lang['time_range'] ?? 'Time range: %s - %s', $summary['start'] ?? '-', $summary['end'] ?? '-') ?></p>
                             <a href="import_execute.php" class="btn btn-success"><?= $lang['confirm_import'] ?? 'Confirm Import' ?></a>
                         </div>
                     </div>
@@ -113,3 +114,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
 <script src="/adminlte/dist/js/adminlte.min.js"></script>
 </body>
 </html>
+
