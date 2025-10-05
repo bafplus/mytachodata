@@ -33,6 +33,9 @@ try {
     die("Could not connect to user database: " . htmlspecialchars($e->getMessage()));
 }
 
+// Handle selected date
+$selectedDate = $_GET['date'] ?? null;
+
 // Fetch all activity rows
 $activityRows = [];
 try {
@@ -44,9 +47,15 @@ try {
 
 // Flatten all activity segments
 $activities = [];
+$dates = [];
 foreach ($activityRows as $row) {
     $raw = json_decode($row['raw'], true);
     if (!$raw || !isset($raw['activity_change_info'])) continue;
+
+    $activityDate = substr($raw['activity_record_date'], 0, 10);
+    $dates[$activityDate] = $activityDate; // collect available dates
+
+    if ($selectedDate && $activityDate !== $selectedDate) continue;
 
     $previousMinutes = 0;
     foreach ($raw['activity_change_info'] as $segment) {
@@ -54,13 +63,10 @@ foreach ($activityRows as $row) {
         $endMinutes = $segment['minutes'];
 
         $activities[] = [
-            'date' => substr($raw['activity_record_date'], 0, 10),
+            'date' => $activityDate,
             'start_time' => sprintf('%02d:%02d', intdiv($startMinutes, 60), $startMinutes % 60),
             'end_time' => sprintf('%02d:%02d', intdiv($endMinutes, 60), $endMinutes % 60),
             'activity_type' => $segment['work_type'],
-            'driver_present' => $segment['driver'] ? 'Yes' : 'No',
-            'team_present' => $segment['team'] ? 'Yes' : 'No',
-            'card_present' => $segment['card_present'] ? 'Yes' : 'No'
         ];
 
         $previousMinutes = $endMinutes;
@@ -89,6 +95,22 @@ require_once __DIR__ . '/inc/sidebar.php';
 
     <div class="content">
         <div class="container-fluid">
+
+            <!-- Day selector -->
+            <?php if (!empty($dates)): ?>
+                <form method="get" class="mb-3">
+                    <label for="date">Select Day:</label>
+                    <select name="date" id="date" onchange="this.form.submit()">
+                        <option value="">-- All Days --</option>
+                        <?php foreach ($dates as $dateOption): ?>
+                            <option value="<?= htmlspecialchars($dateOption) ?>" <?= $selectedDate === $dateOption ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($dateOption) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </form>
+            <?php endif; ?>
+
             <?php if (empty($activities)): ?>
                 <div class="alert alert-info">No activities found.</div>
             <?php else: ?>
@@ -99,9 +121,6 @@ require_once __DIR__ . '/inc/sidebar.php';
                             <th>Start</th>
                             <th>End</th>
                             <th>Activity Type</th>
-                            <th>Driver Present</th>
-                            <th>Team Present</th>
-                            <th>Card Present</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -111,14 +130,12 @@ require_once __DIR__ . '/inc/sidebar.php';
                                 <td><?= htmlspecialchars($act['start_time']) ?></td>
                                 <td><?= htmlspecialchars($act['end_time']) ?></td>
                                 <td><?= htmlspecialchars($activityLabels[$act['activity_type']] ?? 'Unknown') ?></td>
-                                <td><?= htmlspecialchars($act['driver_present']) ?></td>
-                                <td><?= htmlspecialchars($act['team_present']) ?></td>
-                                <td><?= htmlspecialchars($act['card_present']) ?></td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
             <?php endif; ?>
+
         </div>
     </div>
 </div>
