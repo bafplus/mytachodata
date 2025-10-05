@@ -94,5 +94,53 @@ if ($dbExists) {
                     }
 
                     if (strpos($table, 'last_card_download') !== false) {
-                        $last =
+                        $last = $userPdo->query("SELECT MAX(`timestamp`) FROM `{$table}`")->fetchColumn();
+                        if ($last) $summary['last_card_download'] = $last;
+                    }
+                }
+                ?>
 
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="small-box bg-primary">
+                            <div class="inner">
+                                <h3><?= $summary['total_records'] ?></h3>
+                                <p>Total Records</p>
+                            </div>
+                            <div class="icon"><i class="fas fa-database"></i></div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="small-box bg-warning">
+                            <div class="inner">
+                                <h3><?= $summary['events_faults'] ?></h3>
+                                <p>Events & Faults</p>
+                            </div>
+                            <div class="icon"><i class="fas fa-exclamation-triangle"></i></div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="small-box bg-success">
+                            <div class="inner">
+                                <h3><?= $summary['vehicles_used'] ?></h3>
+                                <p>Vehicles Used</p>
+                            </div>
+                            <div class="icon"><i class="fas fa-truck"></i></div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="small-box bg-info">
+                            <div class="inner">
+                                <h3><?= $summary['last_card_download'] ?? '-' ?></h3>
+                                <p>Last Card Download</p>
+                            </div>
+                            <div class="icon"><i class="fas fa-calendar-alt"></i></div>
+                        </div>
+                    </div>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+
+<?php require_once __DIR__ . '/inc/footer.php'; ?>
