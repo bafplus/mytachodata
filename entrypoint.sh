@@ -18,24 +18,30 @@ fi
 # Start MariaDB in background, listening on all interfaces
 mariadbd-safe --datadir=/var/lib/mysql --bind-address=0.0.0.0 &
 
-
 # Wait until MariaDB is ready
 until mysqladmin ping --silent; do
     echo "Waiting for MariaDB..."
     sleep 2
 done
 
-# Create database and users
+# Create main database and grant privileges
 mysql -u root <<-EOSQL
 CREATE DATABASE IF NOT EXISTS ${DB_NAME};
 CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';
 CREATE USER IF NOT EXISTS '${DB_USER}'@'%' IDENTIFIED BY '${DB_PASS}';
+
+# Grant full privileges on main database
 GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost';
 GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'%';
+
+# Grant privileges to create new databases and manage any future per-user databases
+GRANT CREATE, ALTER, DROP, INSERT, UPDATE, DELETE, SELECT, INDEX, REFERENCES, TRIGGER, EXECUTE ON *.* TO '${DB_USER}'@'localhost';
+GRANT CREATE, ALTER, DROP, INSERT, UPDATE, DELETE, SELECT, INDEX, REFERENCES, TRIGGER, EXECUTE ON *.* TO '${DB_USER}'@'%';
+
 FLUSH PRIVILEGES;
 EOSQL
 
-# Create users table and default admin
+# Create tables in main database and default admin
 ADMIN_HASH=$(php -r "echo password_hash('admin', PASSWORD_DEFAULT);")
 
 mysql -u root <<-EOSQL
@@ -54,7 +60,6 @@ INSERT INTO users (username, password, role, language)
 SELECT 'admin', '${ADMIN_HASH}', 'admin', 'en'
 WHERE NOT EXISTS (SELECT 1 FROM users WHERE username='admin');
 
-# Create settings table for admin.php
 CREATE TABLE IF NOT EXISTS settings (
     id INT AUTO_INCREMENT PRIMARY KEY,
     setting_key VARCHAR(100) NOT NULL UNIQUE,
@@ -82,7 +87,6 @@ INSERT INTO settings (setting_key, setting_value)
 SELECT 'support_email', 'support@mytacho.com'
 WHERE NOT EXISTS (SELECT 1 FROM settings WHERE setting_key='support_email');
 EOSQL
-
 
 # Start Apache in foreground
 exec apache2-foreground
