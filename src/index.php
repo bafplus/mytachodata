@@ -1,7 +1,6 @@
 <?php
-require_once __DIR__ . '/inc/db.php'; // main DB connection
+require_once __DIR__ . '/inc/db.php';
 
-// Start session and check login
 if (!isset($_SESSION)) session_start();
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
@@ -11,7 +10,7 @@ if (!isset($_SESSION['user_id'])) {
 $userId = intval($_SESSION['user_id']);
 $userDbName = "mytacho_user_" . $userId;
 
-// DB credentials
+// DB connection details
 $dbHost = getenv('DB_HOST') ?: '127.0.0.1';
 $dbUser = getenv('DB_USER') ?: 'mytacho_user';
 $dbPass = getenv('DB_PASS') ?: 'mytacho_pass';
@@ -21,76 +20,47 @@ $pdoOptions = [
     PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
 ];
 
-// Try to connect to per-user DB
+// Connect to per-user DB
 try {
-    $userPdo = new PDO(
-        "mysql:host={$dbHost};dbname={$userDbName};charset=utf8mb4",
-        $dbUser,
-        $dbPass,
-        $pdoOptions
-    );
+    $userPdo = new PDO("mysql:host={$dbHost};dbname={$userDbName};charset=utf8mb4", $dbUser, $dbPass, $pdoOptions);
 } catch (PDOException $e) {
-    if (strpos($e->getMessage(), 'Unknown database') !== false) {
-        require_once __DIR__ . '/inc/header.php';
-        require_once __DIR__ . '/inc/sidebar.php';
-        echo "<div class='content-wrapper'>
-                <section class='content'>
-                    <div class='container-fluid mt-4'>
-                        <div class='alert alert-info'>
-                            No data imported yet. Please upload your first DDD file.
-                        </div>
-                    </div>
-                </section>
-              </div>";
-        require_once __DIR__ . '/inc/footer.php';
-        exit;
-    } else {
-        die("Could not connect to user database: " . htmlspecialchars($e->getMessage()));
+    die("Could not connect to user database: " . htmlspecialchars($e->getMessage()));
+}
+
+// Helper: extract a value from nested JSON
+function extract_from_raw($rawJson, $pathKeys) {
+    $data = json_decode($rawJson, true);
+    foreach ($pathKeys as $key) {
+        if (is_array($data) && isset($data[$key])) {
+            $data = $data[$key];
+        } elseif (is_array($data) && isset($data[0][$key])) {
+            $data = $data[0][$key];
+        } else {
+            return null;
+        }
     }
+    return is_scalar($data) ? $data : null;
 }
 
-// Fetch summary statistics for dashboard
-$summary = [];
-
-try {
-    // Unique vehicles used
-    $stmt = $userPdo->query("
-        SELECT COUNT(DISTINCT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.vehicle_registration_number'))) AS vehicles
-        FROM card_vehicles_used_1
-    ");
-    $summary['vehicles'] = intval($stmt->fetchColumn() ?: 0);
-
-    // Total events
-    $stmt = $userPdo->query("SELECT COUNT(*) FROM card_event_data_1");
-    $summary['events'] = intval($stmt->fetchColumn() ?: 0);
-
-    // Total faults
-    $stmt = $userPdo->query("SELECT COUNT(*) FROM card_fault_data_1");
-    $summary['faults'] = intval($stmt->fetchColumn() ?: 0);
-
-    // Driver info (take first non-empty name)
-    $stmt = $userPdo->query("
-        SELECT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.driver_name')) AS driver
-        FROM driver_card_application_identification_1
-        WHERE JSON_UNQUOTE(JSON_EXTRACT(raw,'$.driver_name')) IS NOT NULL
-        LIMIT 1
-    ");
-    $summary['driver'] = $stmt->fetchColumn() ?: 'Unknown';
-
-    // Card number
-    $stmt = $userPdo->query("
-        SELECT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.card_number')) AS card_number
-        FROM card_icc_identification_1
-        WHERE JSON_UNQUOTE(JSON_EXTRACT(raw,'$.card_number')) IS NOT NULL
-        LIMIT 1
-    ");
-    $summary['card'] = $stmt->fetchColumn() ?: 'Unknown';
-
-} catch (PDOException $e) {
-    // ignore errors in case tables don't exist yet
+// Fetch driver info
+$driverName = 'Unknown';
+$cardNumber = 'Unknown';
+$stmt = $userPdo->query("SELECT raw FROM driver_card_application_identification_1 LIMIT 1");
+if ($raw = $stmt->fetchColumn()) {
+    $driverName = extract_from_raw($raw, ['driver_info', 'name']) ?? 'Unknown';
+    $cardNumber = extract_from_raw($raw, ['card_info', 'card_number']) ?? 'Unknown';
 }
 
-// Include layout
+// Fetch unique vehicles used
+$vehicles = [];
+$stmt = $userPdo->query("SELECT raw FROM card_vehicles_used_1");
+while ($raw = $stmt->fetchColumn()) {
+    $reg = extract_from_raw($raw, ['vehicle_registration_number']);
+    if ($reg) $vehicles[$reg] = true;
+}
+$vehicleCount = count($vehicles);
+
+// Include header and sidebar
 require_once __DIR__ . '/inc/header.php';
 require_once __DIR__ . '/inc/sidebar.php';
 ?>
@@ -105,75 +75,36 @@ require_once __DIR__ . '/inc/sidebar.php';
     <div class="content">
         <div class="container-fluid">
             <div class="row">
-                <!-- Driver info -->
-                <div class="col-lg-3 col-6">
-                    <div class="small-box bg-info">
-                        <div class="inner">
-                            <h3><?= htmlspecialchars($summary['driver']) ?></h3>
-                            <p>Driver Name</p>
-                        </div>
-                        <div class="icon">
-                            <i class="fas fa-user"></i>
+                <div class="col-md-4">
+                    <div class="info-box bg-info">
+                        <span class="info-box-icon"><i class="fas fa-user"></i></span>
+                        <div class="info-box-content">
+                            <span class="info-box-text">Driver Name</span>
+                            <span class="info-box-number"><?= htmlspecialchars($driverName) ?></span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Card number -->
-                <div class="col-lg-3 col-6">
-                    <div class="small-box bg-success">
-                        <div class="inner">
-                            <h3><?= htmlspecialchars($summary['card']) ?></h3>
-                            <p>Card Number</p>
-                        </div>
-                        <div class="icon">
-                            <i class="fas fa-id-card"></i>
+                <div class="col-md-4">
+                    <div class="info-box bg-success">
+                        <span class="info-box-icon"><i class="fas fa-id-card"></i></span>
+                        <div class="info-box-content">
+                            <span class="info-box-text">Card Number</span>
+                            <span class="info-box-number"><?= htmlspecialchars($cardNumber) ?></span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Vehicles used -->
-                <div class="col-lg-3 col-6">
-                    <div class="small-box bg-warning">
-                        <div class="inner">
-                            <h3><?= $summary['vehicles'] ?></h3>
-                            <p>Unique Vehicles Used</p>
-                        </div>
-                        <div class="icon">
-                            <i class="fas fa-truck"></i>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Events -->
-                <div class="col-lg-3 col-6">
-                    <div class="small-box bg-danger">
-                        <div class="inner">
-                            <h3><?= $summary['events'] ?></h3>
-                            <p>Events Recorded</p>
-                        </div>
-                        <div class="icon">
-                            <i class="fas fa-bolt"></i>
-                        </div>
-                    </div>
-                </div>
-
-            </div>
-
-            <div class="row">
-                <!-- Faults -->
-                <div class="col-lg-3 col-6">
-                    <div class="small-box bg-secondary">
-                        <div class="inner">
-                            <h3><?= $summary['faults'] ?></h3>
-                            <p>Faults</p>
-                        </div>
-                        <div class="icon">
-                            <i class="fas fa-exclamation-triangle"></i>
+                <div class="col-md-4">
+                    <div class="info-box bg-warning">
+                        <span class="info-box-icon"><i class="fas fa-truck"></i></span>
+                        <div class="info-box-content">
+                            <span class="info-box-text">Vehicles Used</span>
+                            <span class="info-box-number"><?= $vehicleCount ?></span>
                         </div>
                     </div>
                 </div>
             </div>
-
         </div>
     </div>
 </div>
