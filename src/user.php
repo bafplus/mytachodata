@@ -1,6 +1,11 @@
 <?php
 require_once __DIR__ . '/inc/db.php';
 
+// Start session before any output
+if (!isset($_SESSION)) {
+    session_start();
+}
+
 // Get current user info
 $userId = $_SESSION['user_id'] ?? null;
 
@@ -49,13 +54,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-require_once __DIR__ . '/inc/header.php';
-require_once __DIR__ . '/inc/sidebar.php';
-
 // Load available languages
 $langFiles = glob(__DIR__ . '/lang/*.php');
 $languages = array_map(fn($f) => basename($f, '.php'), $langFiles);
 $userLang = $user['language'] ?? 'en';
+
+require_once __DIR__ . '/inc/header.php';
+require_once __DIR__ . '/inc/sidebar.php';
 ?>
 
 <div class="content-wrapper">
