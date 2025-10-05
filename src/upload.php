@@ -4,6 +4,7 @@ require_once __DIR__ . '/inc/lang.php'; // optional for translations
 
 if (!isset($_SESSION)) session_start();
 
+// Check login
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
@@ -12,12 +13,36 @@ if (!isset($_SESSION['user_id'])) {
 $userId = $_SESSION['user_id'];
 $error = '';
 $summary = null;
-$preview = null;
 
+// Safe timestamp finder (like in import_execute.php)
+function find_timestamp($rec) {
+    if (!is_array($rec)) return null;
+    $candidates = [
+        'event_begin_time','event_end_time','timestamp','start_time','first_use','last_use',
+        'issue_date','expiry_date','date','activity_date','record_time','time'
+    ];
+    foreach ($candidates as $k) {
+        if (!empty($rec[$k]) && is_string($rec[$k])) {
+            $t = strtotime($rec[$k]);
+            if ($t !== false) return date('Y-m-d H:i:s', $t);
+        }
+    }
+    $it = new RecursiveIteratorIterator(new RecursiveArrayIterator($rec));
+    foreach ($it as $v) {
+        if (is_string($v) && preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/', $v)) {
+            $t = strtotime($v);
+            if ($t !== false) return date('Y-m-d H:i:s', $t);
+        }
+    }
+    return null;
+}
+
+// Handle file upload
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
     if ($_FILES['ddd_file']['error'] === UPLOAD_ERR_OK) {
         $tmpPath = $_FILES['ddd_file']['tmp_name'];
 
+        // Run parser
         $cmd = escapeshellcmd("dddparser -card -input " . escapeshellarg($tmpPath) . " -format");
         $jsonOutput = shell_exec($cmd);
 
@@ -31,24 +56,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
                 // --- Summary ---
                 $records = $data['card_event_data_1'] ?? [];
                 $recordCount = count($records);
-                $startTime = $records[0]['timestamp'] ?? null;
-                $endTime = !empty($records) ? end($records)['timestamp'] : null;
+                $startTime = null;
+                $endTime = null;
+
+                if (!empty($records)) {
+                    $startTime = find_timestamp($records[0]);
+                    $endTime = find_timestamp(end($records));
+                }
 
                 $summary = [
                     'records' => $recordCount,
                     'start' => $startTime,
                     'end' => $endTime
-                ];
-
-                // --- Preview: key driver/card info ---
-                $cardInfo = $data['card_identification_and_driver_card_holder_identification_1'][0] ?? [];
-                $driverApp = $data['driver_card_application_identification_1'][0] ?? [];
-                $preview = [
-                    'Card number' => $cardInfo['card_number'] ?? '-',
-                    'Card type' => $cardInfo['card_type'] ?? '-',
-                    'Expiry date' => $cardInfo['expiry_date'] ?? '-',
-                    'Driver name' => trim(($cardInfo['surname'] ?? '') . ' ' . ($cardInfo['first_name'] ?? '')),
-                    'Driver license number' => $driverApp['driver_license_number'] ?? '-',
                 ];
             }
         } else {
@@ -60,70 +79,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
 }
 ?>
 
-<!-- HTML part -->
 <!DOCTYPE html>
 <html lang="<?= htmlspecialchars($_SESSION['language'] ?? 'en') ?>">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title><?= $lang['upload_title'] ?? 'Upload DDD File' ?></title>
-<link rel="stylesheet" href="/adminlte/plugins/fontawesome-free/css/all.min.css">
-<link rel="stylesheet" href="/adminlte/dist/css/adminlte.min.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?= $lang['upload_title'] ?? 'Upload DDD File' ?></title>
+    <link rel="stylesheet" href="/adminlte/plugins/fontawesome-free/css/all.min.css">
+    <link rel="stylesheet" href="/adminlte/dist/css/adminlte.min.css">
 </head>
 <body class="hold-transition sidebar-mini">
 <div class="wrapper">
-<?php require_once __DIR__ . '/inc/header.php'; ?>
-<?php require_once __DIR__ . '/inc/sidebar.php'; ?>
+    <?php require_once __DIR__ . '/inc/header.php'; ?>
+    <?php require_once __DIR__ . '/inc/sidebar.php'; ?>
 
-<div class="content-wrapper">
-<section class="content">
-<div class="container-fluid mt-4">
+    <div class="content-wrapper">
+        <section class="content">
+            <div class="container-fluid mt-4">
+                <?php if (!empty($error)): ?>
+                    <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
+                <?php endif; ?>
 
-<?php if (!empty($error)): ?>
-<div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
-<?php endif; ?>
+                <div class="card card-primary">
+                    <div class="card-header">
+                        <h3 class="card-title"><?= $lang['upload_title'] ?? 'Upload DDD File' ?></h3>
+                    </div>
+                    <div class="card-body">
+                        <form method="post" enctype="multipart/form-data">
+                            <div class="form-group">
+                                <label><?= $lang['choose_file'] ?? 'Choose .ddd file' ?></label>
+                                <input type="file" name="ddd_file" class="form-control" accept=".ddd" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary"><?= $lang['upload_preview'] ?? 'Upload & Preview' ?></button>
+                        </form>
+                    </div>
+                </div>
 
-<div class="card card-primary">
-<div class="card-header">
-<h3 class="card-title"><?= $lang['upload_title'] ?? 'Upload DDD File' ?></h3>
-</div>
-<div class="card-body">
-<form method="post" enctype="multipart/form-data">
-<div class="form-group">
-<label><?= $lang['choose_file'] ?? 'Choose .ddd file' ?></label>
-<input type="file" name="ddd_file" class="form-control" accept=".ddd" required>
-</div>
-<button type="submit" class="btn btn-primary"><?= $lang['upload_preview'] ?? 'Upload & Preview' ?></button>
-</form>
-</div>
-</div>
+                <?php if ($summary): ?>
+                    <div class="card card-success mt-4">
+                        <div class="card-header">
+                            <h3 class="card-title"><?= $lang['upload_summary'] ?? 'Upload Summary' ?></h3>
+                        </div>
+                        <div class="card-body">
+                            <p><?= sprintf($lang['records_found'] ?? 'Records found: %d', $summary['records']) ?></p>
+                            <p><?= sprintf($lang['time_range'] ?? 'Time range: %s - %s', $summary['start'] ?? '-', $summary['end'] ?? '-') ?></p>
+                            <a href="import_execute.php" class="btn btn-success"><?= $lang['confirm_import'] ?? 'Confirm Import' ?></a>
+                        </div>
+                    </div>
+                <?php endif; ?>
 
-<?php if ($summary): ?>
-<div class="card card-success mt-4">
-<div class="card-header"><h3 class="card-title"><?= $lang['upload_summary'] ?? 'Upload Summary' ?></h3></div>
-<div class="card-body">
-<p><?= sprintf($lang['records_found'] ?? 'Records found: %d', $summary['records']) ?></p>
-<p><?= sprintf($lang['time_range'] ?? 'Time range: %s - %s', $summary['start'] ?? '-', $summary['end'] ?? '-') ?></p>
+            </div>
+        </section>
+    </div>
 
-<?php if ($preview): ?>
-<h5>Card / Driver Preview</h5>
-<table class="table table-bordered table-sm">
-<?php foreach ($preview as $k => $v): ?>
-<tr><th><?= htmlspecialchars($k) ?></th><td><?= htmlspecialchars($v) ?></td></tr>
-<?php endforeach; ?>
-</table>
-<?php endif; ?>
-
-<a href="import_execute.php" class="btn btn-success"><?= $lang['confirm_import'] ?? 'Confirm Import' ?></a>
-</div>
-</div>
-<?php endif; ?>
-
-</div>
-</section>
-</div>
-
-<?php require_once __DIR__ . '/inc/footer.php'; ?>
+    <?php require_once __DIR__ . '/inc/footer.php'; ?>
 </div>
 
 <script src="/adminlte/plugins/jquery/jquery.min.js"></script>
@@ -131,5 +140,3 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
 <script src="/adminlte/dist/js/adminlte.min.js"></script>
 </body>
 </html>
-
-
