@@ -1,7 +1,6 @@
 <?php
 require_once __DIR__ . '/inc/db.php';
 
-// Session and login check
 if (!isset($_SESSION)) session_start();
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
@@ -10,8 +9,7 @@ if (!isset($_SESSION['user_id'])) {
 
 $userId = intval($_SESSION['user_id']);
 
-// Fetch user info
-$stmt = $pdo->prepare("SELECT id, username, role, language FROM users WHERE id = ?");
+$stmt = $pdo->prepare("SELECT id, username FROM users WHERE id = ?");
 $stmt->execute([$userId]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -20,11 +18,9 @@ if (!$user) {
     exit;
 }
 
-// Include header/sidebar
 require_once __DIR__ . '/inc/header.php';
 require_once __DIR__ . '/inc/sidebar.php';
 
-// --- Per-user DB connection setup ---
 $dbHost = getenv('DB_HOST') ?: '127.0.0.1';
 $dbUser = getenv('DB_USER') ?: 'mytacho_user';
 $dbPass = getenv('DB_PASS') ?: 'mytacho_pass';
@@ -36,7 +32,6 @@ $pdoOptions = [
 
 $userDbName = "mytacho_user_" . $userId;
 
-// Check if user DB exists
 try {
     $dbExistsStmt = $pdo->query("SHOW DATABASES LIKE '{$userDbName}'");
     $dbExists = $dbExistsStmt->rowCount() > 0;
@@ -44,6 +39,7 @@ try {
     $dbExists = false;
 }
 
+$userPdo = null;
 if ($dbExists) {
     try {
         $userPdo = new PDO(
@@ -55,12 +51,9 @@ if ($dbExists) {
     } catch (PDOException $e) {
         die("<div class='alert alert-danger'>Could not connect to user database: " . htmlspecialchars($e->getMessage()) . "</div>");
     }
-} else {
-    $userPdo = null;
 }
 ?>
 
-<!-- Dashboard content -->
 <div class="content-wrapper">
     <div class="content-header">
         <div class="container-fluid">
@@ -77,38 +70,29 @@ if ($dbExists) {
                     No data imported yet. Please <a href="upload.php">upload a DDD file</a> to start.
                 </div>
             <?php else: ?>
-                <!-- Example: Display some summary info -->
-                <div class="row">
-                    <?php
-                    // Count number of records per top-level table
-                    $summary = [];
-                    $tablesStmt = $userPdo->query("SHOW TABLES");
-                    $tables = $tablesStmt->fetchAll(PDO::FETCH_COLUMN);
+                <?php
+                // Fetch only key summary data
+                $summary = [
+                    'total_records' => 0,
+                    'events_faults' => 0,
+                    'vehicles_used' => 0,
+                    'last_card_download' => null
+                ];
 
-                    foreach ($tables as $table) {
-                        $cntStmt = $userPdo->query("SELECT COUNT(*) FROM `{$table}`");
-                        $count = $cntStmt->fetchColumn();
-                        $summary[$table] = $count;
+                $tables = $userPdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
+
+                foreach ($tables as $table) {
+                    $count = $userPdo->query("SELECT COUNT(*) FROM `{$table}`")->fetchColumn();
+                    $summary['total_records'] += $count;
+
+                    if (strpos($table, 'card_event_data') !== false || strpos($table, 'card_fault_data') !== false) {
+                        $summary['events_faults'] += $count;
                     }
-                    ?>
 
-                    <?php foreach ($summary as $tbl => $cnt): ?>
-                        <div class="col-md-3">
-                            <div class="small-box bg-primary">
-                                <div class="inner">
-                                    <h3><?= intval($cnt) ?></h3>
-                                    <p><?= htmlspecialchars($tbl) ?></p>
-                                </div>
-                                <div class="icon">
-                                    <i class="fas fa-database"></i>
-                                </div>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
-</div>
+                    if (strpos($table, 'card_vehicles_used') !== false) {
+                        $summary['vehicles_used'] += $count;
+                    }
 
-<?php require_once __DIR__ . '/inc/footer.php'; ?>
+                    if (strpos($table, 'last_card_download') !== false) {
+                        $last =
+
