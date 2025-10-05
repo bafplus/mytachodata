@@ -20,93 +20,21 @@ $pdoOptions = [
     PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
 ];
 
-// Connect to per-user DB
+// Connect to main DB first to check if user DB exists
 try {
-    $userPdo = new PDO("mysql:host={$dbHost};dbname={$userDbName};charset=utf8mb4", $dbUser, $dbPass, $pdoOptions);
-} catch (PDOException $e) {
-    die("Could not connect to user database: " . htmlspecialchars($e->getMessage()));
-}
+    $adminPdo = new PDO("mysql:host={$dbHost};dbname=" . getenv('DB_NAME') ?: 'mytacho' . ";charset=utf8mb4", $dbUser, $dbPass, $pdoOptions);
 
-// Helper: extract a value from nested JSON
-function extract_from_raw($rawJson, $pathKeys) {
-    $data = json_decode($rawJson, true);
-    foreach ($pathKeys as $key) {
-        if (is_array($data) && isset($data[$key])) {
-            $data = $data[$key];
-        } elseif (is_array($data) && isset($data[0][$key])) {
-            $data = $data[0][$key];
-        } else {
-            return null;
-        }
+    $stmt = $adminPdo->prepare("SHOW DATABASES LIKE ?");
+    $stmt->execute([$userDbName]);
+    $dbExists = $stmt->fetchColumn();
+    
+    if (!$dbExists) {
+        die("No data imported yet. Please upload a DDD file first.");
     }
-    return is_scalar($data) ? $data : null;
+    
+    // Connect to per-user DB
+    $userPdo = new PDO("mysql:host={$dbHost};dbname={$userDbName};charset=utf8mb4", $dbUser, $dbPass, $pdoOptions);
+
+} catch (PDOException $e) {
+    die("Could not connect: " . htmlspecialchars($e->getMessage()));
 }
-
-// Fetch driver info
-$driverName = 'Unknown';
-$cardNumber = 'Unknown';
-$stmt = $userPdo->query("SELECT raw FROM driver_card_application_identification_1 LIMIT 1");
-if ($raw = $stmt->fetchColumn()) {
-    $driverName = extract_from_raw($raw, ['driver_info', 'name']) ?? 'Unknown';
-    $cardNumber = extract_from_raw($raw, ['card_info', 'card_number']) ?? 'Unknown';
-}
-
-// Fetch unique vehicles used
-$vehicles = [];
-$stmt = $userPdo->query("SELECT raw FROM card_vehicles_used_1");
-while ($raw = $stmt->fetchColumn()) {
-    $reg = extract_from_raw($raw, ['vehicle_registration_number']);
-    if ($reg) $vehicles[$reg] = true;
-}
-$vehicleCount = count($vehicles);
-
-// Include header and sidebar
-require_once __DIR__ . '/inc/header.php';
-require_once __DIR__ . '/inc/sidebar.php';
-?>
-
-<div class="content-wrapper">
-    <div class="content-header">
-        <div class="container-fluid">
-            <h1 class="m-0">Dashboard</h1>
-        </div>
-    </div>
-
-    <div class="content">
-        <div class="container-fluid">
-            <div class="row">
-                <div class="col-md-4">
-                    <div class="info-box bg-info">
-                        <span class="info-box-icon"><i class="fas fa-user"></i></span>
-                        <div class="info-box-content">
-                            <span class="info-box-text">Driver Name</span>
-                            <span class="info-box-number"><?= htmlspecialchars($driverName) ?></span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-md-4">
-                    <div class="info-box bg-success">
-                        <span class="info-box-icon"><i class="fas fa-id-card"></i></span>
-                        <div class="info-box-content">
-                            <span class="info-box-text">Card Number</span>
-                            <span class="info-box-number"><?= htmlspecialchars($cardNumber) ?></span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-md-4">
-                    <div class="info-box bg-warning">
-                        <span class="info-box-icon"><i class="fas fa-truck"></i></span>
-                        <div class="info-box-content">
-                            <span class="info-box-text">Vehicles Used</span>
-                            <span class="info-box-number"><?= $vehicleCount ?></span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<?php require_once __DIR__ . '/inc/footer.php'; ?>
