@@ -21,6 +21,10 @@ if ($role !== 'admin') {
 // Handle save
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($_POST as $key => $value) {
+        // Checkbox fields are only set when checked
+        if (in_array($key, ['maintenance_mode', 'allow_registration'])) {
+            $value = isset($_POST[$key]) ? '1' : '0';
+        }
         $stmt = $pdo->prepare("
             INSERT INTO settings (setting_key, setting_value)
             VALUES (:key, :value)
@@ -37,8 +41,11 @@ $stmt = $pdo->query("SELECT setting_key, setting_value FROM settings");
 $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
 // Default values
-$default_language = $settings['default_language'] ?? 'en';
 $site_name = $settings['site_name'] ?? 'MyTacho';
+$default_language = $settings['default_language'] ?? 'en';
+$maintenance_mode = $settings['maintenance_mode'] ?? '0';
+$allow_registration = $settings['allow_registration'] ?? '1';
+$support_email = $settings['support_email'] ?? 'support@mytacho.com';
 
 ?>
 <!DOCTYPE html>
@@ -91,6 +98,25 @@ $site_name = $settings['site_name'] ?? 'MyTacho';
                   <option value="fr" <?= $default_language=='fr'?'selected':'' ?>>Français</option>
                 </select>
               </div>
+
+              <div class="form-group">
+                <div class="form-check">
+                  <input type="checkbox" class="form-check-input" id="maintenance_mode" name="maintenance_mode" value="1" <?= $maintenance_mode=='1'?'checked':'' ?>>
+                  <label class="form-check-label" for="maintenance_mode"><?= $lang['maintenance_mode'] ?? 'Maintenance Mode' ?></label>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <div class="form-check">
+                  <input type="checkbox" class="form-check-input" id="allow_registration" name="allow_registration" value="1" <?= $allow_registration=='1'?'checked':'' ?>>
+                  <label class="form-check-label" for="allow_registration"><?= $lang['allow_registration'] ?? 'Allow Registration' ?></label>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label><?= $lang['support_email'] ?? 'Support Email' ?></label>
+                <input type="email" class="form-control" name="support_email" value="<?= htmlspecialchars($support_email) ?>">
+              </div>
             </div>
 
             <div class="card-footer">
@@ -112,4 +138,3 @@ $site_name = $settings['site_name'] ?? 'MyTacho';
 <script src="dist/js/adminlte.min.js"></script>
 </body>
 </html>
-
