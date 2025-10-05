@@ -33,35 +33,38 @@ try {
     die("Could not connect to user database: " . htmlspecialchars($e->getMessage()));
 }
 
-// Get selected date (default = today)
+// Selected date (default: today)
 $selectedDate = $_GET['date'] ?? date('Y-m-d');
-$activities = [];
 
+// Fetch activities for that day
+$activities = [];
 try {
     $stmt = $userPdo->prepare("
         SELECT 
             j.activity,
             j.vehicle_registration_number AS vehicle,
-            j.time AS start_time
+            STR_TO_DATE(j.activity_change_time, '%Y-%m-%dT%H:%i:%sZ') AS start_time
         FROM card_activity_daily_record_1,
              JSON_TABLE(
                 raw,
-                '$.activity_daily_records.activity_changes[*]'
+                '$.activity_daily_records.activity_changes[*].activity_change_info'
                 COLUMNS (
                     activity VARCHAR(50) PATH '$.activity',
                     vehicle_registration_number VARCHAR(50) PATH '$.vehicle_registration_number',
-                    time VARCHAR(50) PATH '$.time'
+                    activity_change_time VARCHAR(50) PATH '$.activity_change_time'
                 )
              ) AS j
-        WHERE DATE(j.time) = :date
-        ORDER BY j.time ASC
+        WHERE DATE(STR_TO_DATE(j.activity_change_time, '%Y-%m-%dT%H:%i:%sZ')) = :date
+        ORDER BY start_time ASC
     ");
     $stmt->execute([':date' => $selectedDate]);
     $activities = $stmt->fetchAll();
 } catch (PDOException $e) {
-    // ignore if table or JSON paths not found yet
+    // Table may not exist yet or structure may differ
+    $activities = [];
 }
 
+// Include layout
 require_once __DIR__ . '/inc/header.php';
 require_once __DIR__ . '/inc/sidebar.php';
 ?>
@@ -69,46 +72,43 @@ require_once __DIR__ . '/inc/sidebar.php';
 <div class="content-wrapper">
     <div class="content-header">
         <div class="container-fluid">
-            <h1 class="m-0">Activities</h1>
+            <h1 class="m-0">Driver Activities</h1>
+            <form method="get" class="form-inline my-2">
+                <label for="date" class="mr-2">Select Date:</label>
+                <input type="date" id="date" name="date" class="form-control mr-2"
+                       value="<?= htmlspecialchars($selectedDate) ?>">
+                <button type="submit" class="btn btn-primary">Show</button>
+            </form>
         </div>
     </div>
 
     <div class="content">
         <div class="container-fluid">
-
-            <!-- Date selector -->
-            <form method="get" class="mb-3">
-                <label for="date">Select Date:</label>
-                <input type="date" id="date" name="date" value="<?= htmlspecialchars($selectedDate) ?>">
-                <button type="submit" class="btn btn-primary btn-sm">Show</button>
-            </form>
-
-            <!-- Activities table -->
-            <table class="table table-striped">
-                <thead>
-                    <tr>
-                        <th>Time</th>
-                        <th>Activity</th>
-                        <th>Vehicle</th>
-                    </tr>
-                </thead>
-                <tbody>
-                <?php if ($activities): ?>
-                    <?php foreach ($activities as $act): ?>
+            <?php if (empty($activities)): ?>
+                <div class="alert alert-info mt-3">No activities found for this date.</div>
+            <?php else: ?>
+                <table class="table table-bordered table-striped mt-3">
+                    <thead>
                         <tr>
-                            <td><?= htmlspecialchars($act['start_time']) ?></td>
-                            <td><?= htmlspecialchars($act['activity']) ?></td>
-                            <td><?= htmlspecialchars($act['vehicle']) ?></td>
+                            <th>Start Time</th>
+                            <th>Activity</th>
+                            <th>Vehicle</th>
                         </tr>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <tr><td colspan="3">No activities found for this date.</td></tr>
-                <?php endif; ?>
-                </tbody>
-            </table>
-
+                    </thead>
+                    <tbody>
+                        <?php foreach ($activities as $act): ?>
+                            <tr>
+                                <td><?= htmlspecialchars($act['start_time']) ?></td>
+                                <td><?= htmlspecialchars($act['activity']) ?></td>
+                                <td><?= htmlspecialchars($act['vehicle']) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php endif; ?>
         </div>
     </div>
 </div>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
+
