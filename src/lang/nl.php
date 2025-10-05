@@ -1,5 +1,12 @@
 <?php
 return [
+
+    'dashboard_title' => 'MyTacho Dashboard',
+    'nav_home' => 'Home',
+    'nav_toggle_theme' => 'Wissel light/donker layout',
+    'nav_user' => 'Gebruikerspagina',
+    'nav_logout' => 'Uitloggen',
+    
     'user_settings' => 'User Settings',
     'username' => 'Gebruikersnaam',
     'new_password' => 'Nieuw wachtwoord',
