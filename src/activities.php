@@ -57,20 +57,50 @@ foreach ($activityRows as $row) {
 
     if ($selectedDate && $activityDate !== $selectedDate) continue;
 
+    $segments = $raw['activity_change_info'];
+    if (count($segments) <= 1) continue;
+
+    // Skip the first segment (index 0)
+    $segments = array_slice($segments, 1);
+
     $previousMinutes = 0;
-    foreach ($raw['activity_change_info'] as $segment) {
-        $startMinutes = $previousMinutes;
+    $currentType = null;
+    $startMinutes = 0;
+
+    foreach ($segments as $segment) {
+        $type = $segment['work_type'];
         $endMinutes = $segment['minutes'];
 
-        $activities[] = [
-            'date' => $activityDate,
-            'start_time' => sprintf('%02d:%02d', intdiv($startMinutes, 60), $startMinutes % 60),
-            'end_time' => sprintf('%02d:%02d', intdiv($endMinutes, 60), $endMinutes % 60),
-            'activity_type' => $segment['work_type'],
-        ];
+        if ($currentType === null) {
+            // First segment after slice
+            $currentType = $type;
+            $startMinutes = $previousMinutes;
+        } elseif ($type !== $currentType) {
+            // Save previous block
+            $activities[] = [
+                'date' => $activityDate,
+                'start_time' => sprintf('%02d:%02d', intdiv($startMinutes, 60), $startMinutes % 60),
+                'end_time' => sprintf('%02d:%02d', intdiv($previousMinutes, 60), $previousMinutes % 60),
+                'activity_type' => $currentType,
+                'duration' => $previousMinutes - $startMinutes
+            ];
+
+            // Start new block
+            $currentType = $type;
+            $startMinutes = $previousMinutes;
+        }
 
         $previousMinutes = $endMinutes;
     }
+
+    // Add last segment
+    $activities[] = [
+        'date' => $activityDate,
+        'start_time' => sprintf('%02d:%02d', intdiv($startMinutes, 60), $startMinutes % 60),
+        'end_time' => sprintf('%02d:%02d', intdiv($previousMinutes, 60), $previousMinutes % 60),
+        'activity_type' => $currentType,
+        'duration' => $previousMinutes - $startMinutes
+    ];
 }
 
 // Map work_type numbers to labels
@@ -121,6 +151,7 @@ require_once __DIR__ . '/inc/sidebar.php';
                             <th>Start</th>
                             <th>End</th>
                             <th>Activity Type</th>
+                            <th>Duration (min)</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -130,6 +161,7 @@ require_once __DIR__ . '/inc/sidebar.php';
                                 <td><?= htmlspecialchars($act['start_time']) ?></td>
                                 <td><?= htmlspecialchars($act['end_time']) ?></td>
                                 <td><?= htmlspecialchars($activityLabels[$act['activity_type']] ?? 'Unknown') ?></td>
+                                <td><?= htmlspecialchars($act['duration']) ?></td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
