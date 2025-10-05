@@ -20,37 +20,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
     if ($_FILES['ddd_file']['error'] === UPLOAD_ERR_OK) {
         $tmpPath = $_FILES['ddd_file']['tmp_name'];
 
-        // Path to parser binary (match import_raw.php)
-        $parserBinary = __DIR__ . '/bin/dddparser';
-        if (!file_exists($parserBinary) || !is_executable($parserBinary)) {
-            $error = $lang['parser_not_found'] ?? 'DDD parser not found or not executable.';
-        } else {
-            // Run parser and capture JSON output
-            $cmd = escapeshellcmd($parserBinary) . ' ' . escapeshellarg($tmpPath);
-            $jsonOutput = shell_exec($cmd);
+        // Run parser exactly like import_raw.php
+        $cmd = escapeshellcmd("dddparser -card -input " . escapeshellarg($tmpPath) . " -format");
+        $jsonOutput = shell_exec($cmd);
 
-            if ($jsonOutput) {
-                $data = json_decode($jsonOutput, true);
-                if ($data === null) {
-                    $error = $lang['parser_invalid_json'] ?? 'Parser returned invalid JSON.';
-                } else {
-                    // Store parsed data in session for confirmation/import step
-                    $_SESSION['import_data'] = $data;
-
-                    // Generate summary
-                    $recordCount = count($data['records'] ?? []);
-                    $startTime = $data['records'][0]['timestamp'] ?? null;
-                    $endTime = end($data['records'])['timestamp'] ?? null;
-
-                    $summary = [
-                        'records' => $recordCount,
-                        'start' => $startTime,
-                        'end' => $endTime
-                    ];
-                }
+        if ($jsonOutput) {
+            $data = json_decode($jsonOutput, true);
+            if ($data === null) {
+                $error = $lang['parser_invalid_json'] ?? 'Parser returned invalid JSON.';
             } else {
-                $error = $lang['parser_failed'] ?? 'Parser execution failed.';
+                // Store parsed data in session for later confirmation/import
+                $_SESSION['import_data'] = $data;
+
+                // Generate summary
+                $recordCount = count($data['records'] ?? []);
+                $startTime = $data['records'][0]['timestamp'] ?? null;
+                $endTime = end($data['records'])['timestamp'] ?? null;
+
+                $summary = [
+                    'records' => $recordCount,
+                    'start' => $startTime,
+                    'end' => $endTime
+                ];
             }
+        } else {
+            $error = $lang['parser_failed'] ?? 'Parser execution failed or returned no output.';
         }
     } else {
         $error = $lang['file_upload_error'] ?? 'File upload failed.';
@@ -63,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= $lang['import_title'] ?? 'Import DDD File' ?></title>
+    <title><?= $lang['upload_title'] ?? 'Upload DDD File' ?></title>
     <link rel="stylesheet" href="/adminlte/plugins/fontawesome-free/css/all.min.css">
     <link rel="stylesheet" href="/adminlte/dist/css/adminlte.min.css">
 </head>
@@ -81,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
 
                 <div class="card card-primary">
                     <div class="card-header">
-                        <h3 class="card-title"><?= $lang['import_title'] ?? 'Import DDD File' ?></h3>
+                        <h3 class="card-title"><?= $lang['upload_title'] ?? 'Upload DDD File' ?></h3>
                     </div>
                     <div class="card-body">
                         <form method="post" enctype="multipart/form-data">
@@ -97,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
                 <?php if ($summary): ?>
                     <div class="card card-success mt-4">
                         <div class="card-header">
-                            <h3 class="card-title"><?= $lang['import_summary'] ?? 'Import Summary' ?></h3>
+                            <h3 class="card-title"><?= $lang['upload_summary'] ?? 'Upload Summary' ?></h3>
                         </div>
                         <div class="card-body">
                             <p><?= sprintf($lang['records_found'] ?? 'Records found: %d', $summary['records']) ?></p>
