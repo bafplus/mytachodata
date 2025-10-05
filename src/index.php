@@ -68,20 +68,20 @@ try {
     $stmt = $userPdo->query("SELECT COUNT(*) FROM card_fault_data_1");
     $summary['faults'] = intval($stmt->fetchColumn() ?: 0);
 
-    // Driver info (nested path)
+    // Driver surname (from correct JSON path)
     $stmt = $userPdo->query("
-        SELECT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.driver.driver_name')) AS driver
-        FROM driver_card_application_identification_1
-        WHERE JSON_UNQUOTE(JSON_EXTRACT(raw,'$.driver.driver_name')) IS NOT NULL
+        SELECT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.driver_card_holder_identification.card_holder_name.holder_surname')) AS driver
+        FROM card_identification_and_driver_card_holder_identification_1
+        WHERE JSON_UNQUOTE(JSON_EXTRACT(raw,'$.driver_card_holder_identification.card_holder_name.holder_surname')) IS NOT NULL
         LIMIT 1
     ");
     $summary['driver'] = $stmt->fetchColumn() ?: 'Unknown';
 
-    // Card number (nested path)
+    // Card number (from correct JSON path)
     $stmt = $userPdo->query("
-        SELECT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.card.card_number')) AS card_number
-        FROM card_icc_identification_1
-        WHERE JSON_UNQUOTE(JSON_EXTRACT(raw,'$.card.card_number')) IS NOT NULL
+        SELECT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.card_identification.card_number')) AS card_number
+        FROM card_identification_and_driver_card_holder_identification_1
+        WHERE JSON_UNQUOTE(JSON_EXTRACT(raw,'$.card_identification.card_number')) IS NOT NULL
         LIMIT 1
     ");
     $summary['card'] = $stmt->fetchColumn() ?: 'Unknown';
