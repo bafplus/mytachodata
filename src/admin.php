@@ -9,43 +9,55 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 // Check if user is admin
-$stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
+$stmt = $pdo->prepare("SELECT role, username FROM users WHERE id = ?");
 $stmt->execute([$_SESSION['user_id']]);
-$role = $stmt->fetchColumn();
+$userData = $stmt->fetch(PDO::FETCH_ASSOC);
 
-if ($role !== 'admin') {
+if ($userData['role'] !== 'admin') {
     header("Location: index.php");
     exit;
 }
 
-// Handle save
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    foreach ($_POST as $key => $value) {
-        // Checkbox fields are only set when checked
-        if (in_array($key, ['maintenance_mode', 'allow_registration'])) {
-            $value = isset($_POST[$key]) ? '1' : '0';
-        }
-        $stmt = $pdo->prepare("
-            INSERT INTO settings (setting_key, setting_value)
-            VALUES (:key, :value)
-            ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)
-        ");
-        $stmt->execute([':key' => $key, ':value' => $value]);
-    }
+$currentUserId = $_SESSION['user_id'];
+$currentUsername = $userData['username'];
+
+// Handle save for site settings
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['site_name'])) {
+    $site_name = $_POST['site_name'];
+    $support_email = $_POST['support_email'];
+
+    $stmt = $pdo->prepare("
+        INSERT INTO settings (setting_key, setting_value)
+        VALUES ('site_name', :site_name), ('support_email', :support_email)
+        ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)
+    ");
+    $stmt->execute([':site_name' => $site_name, ':support_email' => $support_email]);
     header("Location: admin.php?saved=1");
     exit;
+}
+
+// Handle user deletion
+if (isset($_GET['delete_user'])) {
+    $deleteUserId = (int)$_GET['delete_user'];
+    if ($deleteUserId !== $currentUserId) {
+        $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
+        $stmt->execute([$deleteUserId]);
+        header("Location: admin.php?user_deleted=1");
+        exit;
+    } else {
+        $error = $lang['cannot_delete_self'] ?? 'You cannot delete yourself.';
+    }
 }
 
 // Load settings
 $stmt = $pdo->query("SELECT setting_key, setting_value FROM settings");
 $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
-
-// Default values
 $site_name = $settings['site_name'] ?? 'MyTacho';
-$default_language = $settings['default_language'] ?? 'en';
-$maintenance_mode = $settings['maintenance_mode'] ?? '0';
-$allow_registration = $settings['allow_registration'] ?? '1';
 $support_email = $settings['support_email'] ?? 'support@mytacho.com';
+
+// Load all users
+$stmt = $pdo->query("SELECT id, username, role, language, created_at FROM users ORDER BY id ASC");
+$users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 ?>
 <!DOCTYPE html>
@@ -54,7 +66,6 @@ $support_email = $settings['support_email'] ?? 'support@mytacho.com';
   <meta charset="utf-8">
   <title><?= $lang['admin_settings'] ?? 'Admin Settings' ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <!-- AdminLTE CSS -->
   <link rel="stylesheet" href="plugins/fontawesome-free/css/all.min.css">
   <link rel="stylesheet" href="dist/css/adminlte.min.css">
 </head>
@@ -74,11 +85,16 @@ $support_email = $settings['support_email'] ?? 'support@mytacho.com';
     <section class="content">
       <div class="container-fluid">
         <?php if (isset($_GET['saved'])): ?>
-          <div class="alert alert-success">
-            <?= $lang['settings_saved'] ?? 'Settings saved successfully.' ?>
-          </div>
+          <div class="alert alert-success"><?= $lang['settings_saved'] ?? 'Settings saved successfully.' ?></div>
+        <?php endif; ?>
+        <?php if (isset($_GET['user_deleted'])): ?>
+          <div class="alert alert-success"><?= $lang['user_deleted'] ?? 'User deleted successfully.' ?></div>
+        <?php endif; ?>
+        <?php if (!empty($error)): ?>
+          <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
         <?php endif; ?>
 
+        <!-- Site Settings Form -->
         <div class="card card-primary">
           <div class="card-header">
             <h3 class="card-title"><?= $lang['site_settings'] ?? 'Site Settings' ?></h3>
@@ -89,41 +105,56 @@ $support_email = $settings['support_email'] ?? 'support@mytacho.com';
                 <label><?= $lang['site_name'] ?? 'Site Name' ?></label>
                 <input type="text" class="form-control" name="site_name" value="<?= htmlspecialchars($site_name) ?>">
               </div>
-
-              <div class="form-group">
-                <label><?= $lang['default_language'] ?? 'Default Language' ?></label>
-                <select class="form-control" name="default_language">
-                  <option value="en" <?= $default_language=='en'?'selected':'' ?>>English</option>
-                  <option value="de" <?= $default_language=='de'?'selected':'' ?>>Deutsch</option>
-                  <option value="fr" <?= $default_language=='fr'?'selected':'' ?>>Français</option>
-                </select>
-              </div>
-
-              <div class="form-group">
-                <div class="form-check">
-                  <input type="checkbox" class="form-check-input" id="maintenance_mode" name="maintenance_mode" value="1" <?= $maintenance_mode=='1'?'checked':'' ?>>
-                  <label class="form-check-label" for="maintenance_mode"><?= $lang['maintenance_mode'] ?? 'Maintenance Mode' ?></label>
-                </div>
-              </div>
-
-              <div class="form-group">
-                <div class="form-check">
-                  <input type="checkbox" class="form-check-input" id="allow_registration" name="allow_registration" value="1" <?= $allow_registration=='1'?'checked':'' ?>>
-                  <label class="form-check-label" for="allow_registration"><?= $lang['allow_registration'] ?? 'Allow Registration' ?></label>
-                </div>
-              </div>
-
               <div class="form-group">
                 <label><?= $lang['support_email'] ?? 'Support Email' ?></label>
                 <input type="email" class="form-control" name="support_email" value="<?= htmlspecialchars($support_email) ?>">
               </div>
             </div>
-
             <div class="card-footer">
               <button type="submit" class="btn btn-primary"><?= $lang['save'] ?? 'Save' ?></button>
             </div>
           </form>
         </div>
+
+        <!-- Users Overview Table -->
+        <div class="card card-secondary mt-4">
+          <div class="card-header">
+            <h3 class="card-title"><?= $lang['user_overview'] ?? 'Users Overview' ?></h3>
+          </div>
+          <div class="card-body table-responsive">
+            <table class="table table-bordered table-hover">
+              <thead>
+                <tr>
+                  <th><?= $lang['id'] ?? 'ID' ?></th>
+                  <th><?= $lang['username'] ?? 'Username' ?></th>
+                  <th><?= $lang['role'] ?? 'Role' ?></th>
+                  <th><?= $lang['language'] ?? 'Language' ?></th>
+                  <th><?= $lang['created_at'] ?? 'Created At' ?></th>
+                  <th><?= $lang['actions'] ?? 'Actions' ?></th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php foreach ($users as $user): ?>
+                  <tr>
+                    <td><?= $user['id'] ?></td>
+                    <td><?= htmlspecialchars($user['username']) ?></td>
+                    <td><?= htmlspecialchars($user['role']) ?></td>
+                    <td><?= htmlspecialchars($user['language']) ?></td>
+                    <td><?= htmlspecialchars($user['created_at']) ?></td>
+                    <td>
+                      <?php if ($user['id'] !== $currentUserId): ?>
+                        <a href="admin.php?delete_user=<?= $user['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('<?= $lang['confirm_delete_user'] ?? 'Are you sure you want to delete this user?' ?>')"><?= $lang['delete'] ?? 'Delete' ?></a>
+                      <?php else: ?>
+                        <span class="text-muted"><?= $lang['cannot_delete_self'] ?? 'Protected' ?></span>
+                      <?php endif; ?>
+                    </td>
+                  </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
     </section>
   </div>
@@ -132,7 +163,6 @@ $support_email = $settings['support_email'] ?? 'support@mytacho.com';
 
 </div>
 
-<!-- Scripts -->
 <script src="plugins/jquery/jquery.min.js"></script>
 <script src="plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
 <script src="dist/js/adminlte.min.js"></script>
