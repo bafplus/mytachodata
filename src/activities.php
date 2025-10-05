@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/inc/db.php';
+require_once __DIR__ . '/inc/db.php'; // main DB connection
 
 // Start session and check login
 if (!isset($_SESSION)) session_start();
@@ -21,7 +21,7 @@ $pdoOptions = [
     PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
 ];
 
-// Connect to per-user DB
+// Try to connect to per-user DB
 try {
     $userPdo = new PDO(
         "mysql:host={$dbHost};dbname={$userDbName};charset=utf8mb4",
@@ -33,27 +33,21 @@ try {
     die("Could not connect to user database: " . htmlspecialchars($e->getMessage()));
 }
 
-// Fetch all activities from both tables
+// Fetch all activities
 $activities = [];
-
 try {
-    $tables = ['card_driver_activity_1', 'card_driver_activity_2'];
-
-    foreach ($tables as $table) {
-        $stmt = $userPdo->query("
-            SELECT 
-                JSON_UNQUOTE(JSON_EXTRACT(raw, '$.start_time')) AS start_time,
-                JSON_UNQUOTE(JSON_EXTRACT(raw, '$.end_time')) AS end_time,
-                JSON_UNQUOTE(JSON_EXTRACT(raw, '$.activity_type')) AS activity_type,
-                JSON_UNQUOTE(JSON_EXTRACT(raw, '$.vehicle_registration_number')) AS vehicle
-            FROM {$table}
-            ORDER BY start_time ASC
-        ");
-        $activities = array_merge($activities, $stmt->fetchAll());
-    }
-
+    $stmt = $userPdo->query("
+        SELECT 
+            JSON_UNQUOTE(JSON_EXTRACT(raw,'$.start_time')) AS start_time,
+            JSON_UNQUOTE(JSON_EXTRACT(raw,'$.end_time')) AS end_time,
+            JSON_UNQUOTE(JSON_EXTRACT(raw,'$.activity_type')) AS activity_type,
+            JSON_UNQUOTE(JSON_EXTRACT(raw,'$.vehicle_registration_number')) AS vehicle
+        FROM card_driver_activity_1
+        ORDER BY start_time ASC
+    ");
+    $activities = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    $activities = [];
+    die("Error fetching activities: " . $e->getMessage());
 }
 
 // Include layout
@@ -70,33 +64,32 @@ require_once __DIR__ . '/inc/sidebar.php';
 
     <div class="content">
         <div class="container-fluid">
-            <?php if (!empty($activities)): ?>
+            <?php if (empty($activities)): ?>
+                <div class="alert alert-info">No activities found.</div>
+            <?php else: ?>
                 <table class="table table-bordered table-striped">
                     <thead>
                         <tr>
                             <th>Start Time</th>
                             <th>End Time</th>
                             <th>Activity Type</th>
-                            <th>Vehicle</th>
+                            <th>Vehicle Registration</th>
                         </tr>
                     </thead>
                     <tbody>
-                    <?php foreach ($activities as $act): ?>
-                        <tr>
-                            <td><?= htmlspecialchars($act['start_time']) ?></td>
-                            <td><?= htmlspecialchars($act['end_time']) ?></td>
-                            <td><?= htmlspecialchars($act['activity_type']) ?></td>
-                            <td><?= htmlspecialchars($act['vehicle']) ?></td>
-                        </tr>
-                    <?php endforeach; ?>
+                        <?php foreach ($activities as $act): ?>
+                            <tr>
+                                <td><?= htmlspecialchars($act['start_time'] ?? '') ?></td>
+                                <td><?= htmlspecialchars($act['end_time'] ?? '') ?></td>
+                                <td><?= htmlspecialchars($act['activity_type'] ?? '') ?></td>
+                                <td><?= htmlspecialchars($act['vehicle'] ?? '') ?></td>
+                            </tr>
+                        <?php endforeach; ?>
                     </tbody>
                 </table>
-            <?php else: ?>
-                <div class="alert alert-info">No activities found.</div>
             <?php endif; ?>
         </div>
     </div>
 </div>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
-
