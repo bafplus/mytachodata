@@ -15,7 +15,7 @@ $userId = $_SESSION['user_id'];
 $error = '';
 $summary = null;
 
-// Helper: find timestamp
+// Utility: try to find a timestamp in a record
 function find_timestamp($rec) {
     if (!is_array($rec)) return null;
     $candidates = [
@@ -25,6 +25,13 @@ function find_timestamp($rec) {
     foreach ($candidates as $k) {
         if (!empty($rec[$k]) && is_string($rec[$k])) {
             $t = strtotime($rec[$k]);
+            if ($t !== false) return date('Y-m-d H:i:s', $t);
+        }
+    }
+    $it = new RecursiveIteratorIterator(new RecursiveArrayIterator($rec));
+    foreach ($it as $v) {
+        if (is_string($v) && preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/', $v)) {
+            $t = strtotime($v);
             if ($t !== false) return date('Y-m-d H:i:s', $t);
         }
     }
@@ -50,14 +57,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
 
                 // Safe summary generation
                 $records = $data['card_event_data_1'] ?? [];
-                $recordCount = count($records);
+                $recordCount = is_array($records) ? count($records) : 0;
 
                 $startTime = null;
                 $endTime = null;
 
-                if (!empty($records)) {
-                    $startTime = find_timestamp($records[0]);
-                    $lastRecord = end($records);
+                if (!empty($records) && is_array($records)) {
+                    $firstRecord = reset($records); // first element
+                    $lastRecord = end($records);    // last element
+
+                    if (is_array($firstRecord)) {
+                        $startTime = find_timestamp($firstRecord);
+                    }
                     if (is_array($lastRecord)) {
                         $endTime = find_timestamp($lastRecord);
                     }
@@ -139,3 +150,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
 <script src="/adminlte/dist/js/adminlte.min.js"></script>
 </body>
 </html>
+
