@@ -1,9 +1,8 @@
 <?php
-// import_execute.php
-// Full robust importer that creates per-user DB, per-block tables and stores raw JSON + handy fields.
+// import_execute.php - deduplicated version
 
-require_once __DIR__ . '/inc/db.php'; // optional: may provide $pdo (main DB connection)
-require_once __DIR__ . '/inc/lang.php'; // optional translations
+require_once __DIR__ . '/inc/db.php';
+require_once __DIR__ . '/inc/lang.php';
 
 if (!isset($_SESSION)) session_start();
 
@@ -19,7 +18,7 @@ if (!$data) {
     die("No parsed import data found in session. Please upload a DDD file first.");
 }
 
-// --- DB credentials & safe defaults ---
+// --- DB credentials ---
 $dbHost = getenv('DB_HOST') ?: '127.0.0.1';
 $dbUser = getenv('DB_USER') ?: 'mytacho_user';
 $dbPass = getenv('DB_PASS') ?: 'mytacho_pass';
@@ -31,7 +30,6 @@ $pdoOptions = [
     PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
 ];
 
-// Ensure we have an admin / main PDO
 if (isset($pdo) && $pdo instanceof PDO) {
     $adminPdo = $pdo;
 } else {
@@ -78,15 +76,14 @@ function find_label($rec) {
     if (!is_array($rec)) return null;
     $candidates = ['event_type','activity_type','control_type','registration','vehicle_registration_number','card_number','type','name','reason'];
     foreach ($candidates as $k) {
-        if (!empty($rec[$k])) {
-            if (is_array($rec[$k])) continue;
+        if (!empty($rec[$k]) && !is_array($rec[$k])) {
             return (string)$rec[$k];
         }
     }
     return null;
 }
 
-// --- Create per-user database if missing ---
+// --- User DB setup ---
 $userDbName = "mytacho_user_" . $userId;
 try {
     $adminPdo->exec("CREATE DATABASE IF NOT EXISTS `{$userDbName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
@@ -94,7 +91,6 @@ try {
     die("Failed creating user database: " . htmlspecialchars($e->getMessage()));
 }
 
-// --- Connect to per-user DB ---
 try {
     $userPdo = new PDO("mysql:host={$dbHost};dbname={$userDbName};charset=utf8mb4", $dbUser, $dbPass, $pdoOptions);
     $userPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -102,89 +98,27 @@ try {
     die("Failed connecting to user DB: " . htmlspecialchars($e->getMessage()));
 }
 
-// --- Extract card metadata ---
-$metadataBlocks = [
-    'card_icc_identification_1', 
-    'card_icc_identification_2', 
-    'card_chip_identification_1', 
-    'card_chip_identification_2', 
-    'card_identification_and_driver_card_holder_identification_1', 
-    'driver_card_application_identification_1'
-];
-
-$cards = [];
-foreach ($metadataBlocks as $block) {
-    if (!empty($data[$block])) {
-        $rec = $data[$block];
-
-        $cardNumber = $rec['card_extended_serial_number']['serial_number'] ?? null;
-        $month = $rec['card_extended_serial_number']['month_year']['month'] ?? null;
-        $year = $rec['card_extended_serial_number']['month_year']['year'] ?? null;
-        $expiry = ($year && $month) ? date('Y-m-d', strtotime("20$year-$month-01")) : null;
-
-        $driverName = $rec['card_driver_name'] ?? null;
-        $manufacturerCode = $rec['card_extended_serial_number']['manufacturer_code'] ?? null;
-        $cardSerial = $rec['card_extended_serial_number']['serial_number'] ?? null;
-        $cardType = $rec['card_extended_serial_number']['type'] ?? null;
-
-        $cards[] = [
-            'card_number' => $cardNumber,
-            'expiry_date' => $expiry,
-            'driver_name' => $driverName,
-            'manufacturer_code' => $manufacturerCode,
-            'card_serial_number' => $cardSerial,
-            'card_type' => $cardType
-        ];
-    }
-}
-
-// Create driver_cards table
-$userPdo->exec("
-    CREATE TABLE IF NOT EXISTS `driver_cards` (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        card_number VARCHAR(50),
-        expiry_date DATE,
-        driver_name VARCHAR(255),
-        card_type VARCHAR(50),
-        manufacturer_code VARCHAR(50),
-        card_serial_number VARCHAR(50),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-");
-
-// Insert cards
-$insertCard = $userPdo->prepare("
-    INSERT INTO `driver_cards` 
-    (card_number, expiry_date, driver_name, card_type, manufacturer_code, card_serial_number)
-    VALUES (:card_number, :expiry_date, :driver_name, :card_type, :manufacturer_code, :card_serial_number)
-");
-foreach ($cards as $c) {
-    $insertCard->execute([
-        ':card_number' => $c['card_number'],
-        ':expiry_date' => $c['expiry_date'],
-        ':driver_name' => $c['driver_name'],
-        ':card_type' => $c['card_type'],
-        ':manufacturer_code' => $c['manufacturer_code'],
-        ':card_serial_number' => $c['card_serial_number']
-    ]);
-}
-
-// --- Summary for raw import ---
 $summary = [];
 
+// --- Process each block ---
 foreach ($data as $topKey => $block) {
     $table = safe_table_name($topKey);
 
-    $userPdo->exec("
+    // create table with unique hash to prevent duplicates
+    $createSql = "
         CREATE TABLE IF NOT EXISTS `{$table}` (
             id INT AUTO_INCREMENT PRIMARY KEY,
             `timestamp` DATETIME NULL,
             `label` VARCHAR(255) NULL,
             `raw` JSON NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            `hash` CHAR(32) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY `uniq_hash` (`hash`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    ");
+    ";
+    $userPdo->exec($createSql);
 
+    // flatten items
     $items = [];
     if (is_array($block)) {
         if (isset($block['card_event_records_array']) && is_array($block['card_event_records_array'])) {
@@ -212,21 +146,25 @@ foreach ($data as $topKey => $block) {
         $items[] = ['value' => $block];
     }
 
+    // insert with deduplication
     $inserted = 0;
     if (!empty($items)) {
         $userPdo->beginTransaction();
         try {
-            $insertStmt = $userPdo->prepare("INSERT INTO `{$table}` (`timestamp`,`label`,`raw`) VALUES (:timestamp,:label,:raw)");
+            $insertStmt = $userPdo->prepare("INSERT IGNORE INTO `{$table}` (`timestamp`,`label`,`raw`,`hash`) VALUES (:timestamp,:label,:raw,:hash)");
             foreach ($items as $rec) {
                 $ts = find_timestamp($rec);
                 $label = find_label($rec);
                 $raw = json_encode($rec, JSON_UNESCAPED_UNICODE);
+                $hash = md5($raw);
+
                 $insertStmt->execute([
                     ':timestamp' => $ts,
                     ':label' => $label,
-                    ':raw' => $raw
+                    ':raw' => $raw,
+                    ':hash' => $hash
                 ]);
-                $inserted++;
+                $inserted += $insertStmt->rowCount();
             }
             $userPdo->commit();
         } catch (PDOException $e) {
@@ -235,11 +173,13 @@ foreach ($data as $topKey => $block) {
             continue;
         }
     }
+
     $summary[$table] = $inserted;
 }
 
-// remove import_data from session
 unset($_SESSION['import_data']);
+
+// --- Output summary ---
 ?>
 <!DOCTYPE html>
 <html lang="<?= htmlspecialchars($_SESSION['language'] ?? 'en') ?>">
@@ -262,7 +202,7 @@ unset($_SESSION['import_data']);
           <div class="card-body">
             <ul>
 <?php foreach ($summary as $tbl => $cnt): ?>
-              <li><strong><?= htmlspecialchars($tbl) ?></strong>: <?= is_int($cnt) ? intval($cnt) . " rows" : htmlspecialchars($cnt) ?></li>
+              <li><strong><?= htmlspecialchars($tbl) ?></strong>: <?= is_int($cnt) ? intval($cnt) . " rows inserted" : htmlspecialchars($cnt) ?></li>
 <?php endforeach; ?>
             </ul>
             <a href="upload.php" class="btn btn-primary">Back to Upload</a>
@@ -280,4 +220,3 @@ unset($_SESSION['import_data']);
 <script src="/adminlte/dist/js/adminlte.min.js"></script>
 </body>
 </html>
-
