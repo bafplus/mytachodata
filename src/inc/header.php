@@ -14,11 +14,11 @@ if (file_exists($langFile)) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= htmlspecialchars($currentLang) ?>">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MyTacho Dashboard</title>
+  <title><?= htmlspecialchars($lang['dashboard_title'] ?? 'MyTacho Dashboard') ?></title>
   <!-- Font Awesome -->
   <link rel="stylesheet" href="/adminlte/plugins/fontawesome-free/css/all.min.css">
   <!-- AdminLTE CSS -->
@@ -35,7 +35,7 @@ if (file_exists($langFile)) {
         <a class="nav-link" data-widget="pushmenu" href="#"><i class="fas fa-bars"></i></a>
       </li>
       <li class="nav-item d-none d-sm-inline-block">
-        <a href="index.php" class="nav-link">Home</a>
+        <a href="index.php" class="nav-link"><?= htmlspecialchars($lang['nav_home'] ?? 'Home') ?></a>
       </li>
     </ul>
 
@@ -43,19 +43,19 @@ if (file_exists($langFile)) {
     <ul class="navbar-nav ml-auto">
       <!-- Theme toggle -->
       <li class="nav-item">
-        <a href="#" id="theme-toggle" class="nav-link" title="Toggle Light/Dark">
+        <a href="#" id="theme-toggle" class="nav-link" title="<?= htmlspecialchars($lang['nav_toggle_theme'] ?? 'Toggle Light/Dark') ?>">
           <i class="fas fa-adjust"></i>
         </a>
       </li>
       <!-- User page -->
       <li class="nav-item">
-        <a href="user.php" class="nav-link" title="User Page">
+        <a href="user.php" class="nav-link" title="<?= htmlspecialchars($lang['nav_user'] ?? 'User Page') ?>">
           <i class="fas fa-user"></i>
         </a>
       </li>
       <!-- Logout -->
       <li class="nav-item">
-        <a href="logout.php" class="nav-link" title="Logout">
+        <a href="logout.php" class="nav-link" title="<?= htmlspecialchars($lang['nav_logout'] ?? 'Logout') ?>">
           <i class="fas fa-sign-out-alt"></i>
         </a>
       </li>
