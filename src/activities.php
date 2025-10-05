@@ -105,10 +105,10 @@ foreach ($activityRows as $row) {
 
 // Map work_type numbers to labels
 $activityLabels = [
-    0 => 'Rest/Unknown',
+    0 => 'Other Work/Rest',
     1 => 'Available',
     2 => 'Driving',
-    3 => 'Other Work'
+    3 => 'Rest'
 ];
 
 // Include layout
