@@ -2,8 +2,10 @@
 require_once __DIR__ . '/inc/db.php';
 require_once __DIR__ . '/inc/lang.php';
 
-// Start session and check login
+// Start session
 if (!isset($_SESSION)) session_start();
+
+// Check login
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
@@ -18,7 +20,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
     if ($_FILES['ddd_file']['error'] === UPLOAD_ERR_OK) {
         $tmpPath = $_FILES['ddd_file']['tmp_name'];
 
-        // Run parser exactly like import_raw.php
         $cmd = escapeshellcmd("dddparser -card -input " . escapeshellarg($tmpPath) . " -format");
         $jsonOutput = shell_exec($cmd);
 
@@ -27,38 +28,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
             if ($data === null) {
                 $error = $lang['parser_invalid_json'] ?? 'Parser returned invalid JSON.';
             } else {
-                // Flatten events for summary
-                $records = $data['card_event_data_1']['card_event_records_array'] ?? [];
-                $flatRecords = [];
+                $_SESSION['import_data'] = $data;
 
-                foreach ($records as $eventBlock) {
-                    if (!empty($eventBlock['card_event_records'])) {
-                        foreach ($eventBlock['card_event_records'] as $r) {
-                            if (!empty($r['event_begin_time'])) {
-                                $flatRecords[] = [
-                                    'event_type' => $r['event_type'] ?? null,
-                                    'timestamp' => $r['event_begin_time'],
-                                    'vehicle_number' => $r['event_vehicle_registration']['vehicle_registration_number'] ?? null,
-                                    'raw_json' => $r
-                                ];
+                // Count records in nested structure
+                $recordCount = 0;
+                $timestamps = [];
+
+                foreach ($data as $key => $value) {
+                    if (str_starts_with($key, 'card_event_data')) {
+                        if (!empty($value['card_event_records_array'])) {
+                            foreach ($value['card_event_records_array'] as $arrayItem) {
+                                if (!empty($arrayItem['card_event_records'])) {
+                                    foreach ($arrayItem['card_event_records'] as $record) {
+                                        if (!empty($record['event_begin_time'])) {
+                                            $recordCount++;
+                                            $timestamps[] = $record['event_begin_time'];
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
 
-                $recordCount = count($flatRecords);
-                $startTime = $flatRecords[0]['timestamp'] ?? null;
-                $endTime = !empty($flatRecords) ? end($flatRecords)['timestamp'] : null;
-
+                sort($timestamps);
                 $summary = [
                     'records' => $recordCount,
-                    'start' => $startTime,
-                    'end' => $endTime,
-                    'flat_records' => $flatRecords
+                    'start' => $timestamps[0] ?? null,
+                    'end' => end($timestamps) ?? null
                 ];
-
-                // Store in session for import
-                $_SESSION['import_data'] = $summary;
             }
         } else {
             $error = $lang['parser_failed'] ?? 'Parser execution failed or returned no output.';
@@ -130,3 +128,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
 <script src="/adminlte/dist/js/adminlte.min.js"></script>
 </body>
 </html>
+
