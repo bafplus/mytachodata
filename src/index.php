@@ -19,61 +19,103 @@ $pdoOptions = [
     PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
 ];
 
+// Connect to main DB to check if user DB exists
 try {
-    $userPdo = new PDO(
-        "mysql:host={$dbHost};dbname={$userDbName};charset=utf8mb4",
+    $adminPdo = new PDO(
+        "mysql:host={$dbHost};dbname=" . getenv('DB_NAME') . ";charset=utf8mb4",
         $dbUser,
         $dbPass,
         $pdoOptions
     );
+
+    $stmt = $adminPdo->prepare("SHOW DATABASES LIKE ?");
+    $stmt->execute([$userDbName]);
+    $dbExists = $stmt->fetchColumn() !== false;
+
+    if (!$dbExists) {
+        $noData = true;
+    } else {
+        $userPdo = new PDO(
+            "mysql:host={$dbHost};dbname={$userDbName};charset=utf8mb4",
+            $dbUser,
+            $dbPass,
+            $pdoOptions
+        );
+        $noData = false;
+    }
+
 } catch (PDOException $e) {
-    die("Could not connect to user database: " . htmlspecialchars($e->getMessage()));
+    die("Database connection error: " . htmlspecialchars($e->getMessage()));
 }
 
-// Fetch all tables for this user DB
-$tables = $userPdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
-
-// Gather table row counts
-$tableCounts = [];
-foreach ($tables as $table) {
-    $stmt = $userPdo->query("SELECT COUNT(*) FROM `$table`");
-    $tableCounts[$table] = (int)$stmt->fetchColumn();
-}
-
+// Include header & sidebar
 require_once __DIR__ . '/inc/header.php';
 require_once __DIR__ . '/inc/sidebar.php';
+
 ?>
 
 <div class="content-wrapper">
     <div class="content-header">
         <div class="container-fluid">
             <h1 class="m-0">Dashboard</h1>
-            <p>Welcome, <?= htmlspecialchars($_SESSION['username'] ?? 'User') ?>!</p>
         </div>
     </div>
 
     <div class="content">
         <div class="container-fluid">
-            <div class="row">
-                <?php foreach ($tableCounts as $table => $count): ?>
-                    <div class="col-md-3 col-sm-6 mb-3">
-                        <div class="small-box bg-info">
-                            <div class="inner">
-                                <h3><?= $count ?></h3>
-                                <p><?= htmlspecialchars($table) ?></p>
-                            </div>
-                            <div class="icon">
-                                <i class="fas fa-database"></i>
-                            </div>
-                            <a href="views/view_table.php?table=<?= urlencode($table) ?>" class="small-box-footer">
-                                View Details <i class="fas fa-arrow-circle-right"></i>
-                            </a>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
+
+<?php if ($noData): ?>
+            <div class="alert alert-info">
+                <h5>No imported data yet</h5>
+                <p>Please upload a DDD file first. Once imported, your dashboard will display summary information here.</p>
+                <a href="upload.php" class="btn btn-primary">Upload DDD File</a>
             </div>
+<?php else: ?>
+            <p>Welcome, <?= htmlspecialchars($_SESSION['username'] ?? 'User') ?>!</p>
+
+            <?php
+            // Define main tables you want to summarize
+            $tablesToSummarize = [
+                'card_event_data_1' => 'Card Events 1',
+                'card_event_data_2' => 'Card Events 2',
+                'card_driver_activity_1' => 'Driver Activity 1',
+                'card_driver_activity_2' => 'Driver Activity 2',
+                'card_vehicles_used_1' => 'Vehicles Used 1',
+                'card_vehicles_used_2' => 'Vehicles Used 2',
+                'card_fault_data_1' => 'Faults 1',
+                'card_fault_data_2' => 'Faults 2'
+            ];
+
+            echo '<div class="row">';
+            foreach ($tablesToSummarize as $table => $label) {
+                try {
+                    $count = $userPdo->query("SELECT COUNT(*) FROM `{$table}`")->fetchColumn();
+                } catch (PDOException $e) {
+                    $count = 0;
+                }
+                ?>
+                <div class="col-lg-3 col-6">
+                    <div class="small-box bg-info">
+                        <div class="inner">
+                            <h3><?= intval($count) ?></h3>
+                            <p><?= htmlspecialchars($label) ?></p>
+                        </div>
+                        <div class="icon">
+                            <i class="fas fa-database"></i>
+                        </div>
+                        <a href="#" class="small-box-footer">View <i class="fas fa-arrow-circle-right"></i></a>
+                    </div>
+                </div>
+            <?php
+            }
+            echo '</div>'; // row
+            ?>
+
+<?php endif; ?>
+
         </div>
     </div>
 </div>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
+
