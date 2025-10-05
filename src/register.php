@@ -26,22 +26,28 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
+    $confirmPassword = $_POST['confirm_password'] ?? '';
     $language = $_POST['language'] ?? 'en';
 
-    if ($username && $password) {
-        // Check if username exists
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE username = ?");
-        $stmt->execute([$username]);
-        if ($stmt->fetchColumn() == 0) {
-            $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("INSERT INTO users (username, password, role, language) VALUES (?, ?, 'user', ?)");
-            $stmt->execute([$username, $hashedPassword, $language]);
-
-            // Redirect to login with prefilled username and success message
-            header('Location: login.php?username=' . urlencode($username) . '&registered=1');
-            exit;
+    if ($username && $password && $confirmPassword) {
+        // Check if passwords match
+        if ($password !== $confirmPassword) {
+            $error = $lang['password_mismatch'] ?? 'Passwords do not match.';
         } else {
-            $error = $lang['username_exists'] ?? 'Username already exists.';
+            // Check if username exists
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE username = ?");
+            $stmt->execute([$username]);
+            if ($stmt->fetchColumn() == 0) {
+                $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+                $stmt = $pdo->prepare("INSERT INTO users (username, password, role, language) VALUES (?, ?, 'user', ?)");
+                $stmt->execute([$username, $hashedPassword, $language]);
+
+                // Redirect to login with prefilled username and success message
+                header('Location: login.php?username=' . urlencode($username) . '&registered=1');
+                exit;
+            } else {
+                $error = $lang['username_exists'] ?? 'Username already exists.';
+            }
         }
     } else {
         $error = $lang['username_password_required'] ?? 'Username and password are required.';
@@ -92,6 +98,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
 
                 <div class="input-group mb-3">
+                    <input type="password" name="confirm_password" class="form-control" placeholder="<?= $lang['confirm_password'] ?? 'Confirm Password' ?>" required>
+                    <div class="input-group-append">
+                        <div class="input-group-text"><span class="fas fa-lock"></span></div>
+                    </div>
+                </div>
+
+                <div class="input-group mb-3">
                     <select name="language" class="form-control">
                         <option value="en"><?= $lang['lang_en'] ?? 'English' ?></option>
                         <option value="de"><?= $lang['lang_de'] ?? 'Deutsch' ?></option>
@@ -118,4 +131,3 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script src="/adminlte/dist/js/adminlte.min.js"></script>
 </body>
 </html>
-
