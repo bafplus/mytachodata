@@ -1,74 +1,93 @@
 <?php
-require_once __DIR__ . '/inc/db.php';
-require_once __DIR__ . '/inc/lang.php';
+require_once __DIR__ . '/inc/db.php'; // contains $pdo, $dbUser, $dbPass, $pdoOptions
+require_once __DIR__ . '/inc/lang.php'; // optional
 
+// Start session
 if (!isset($_SESSION)) session_start();
+
+// Check login
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
 }
 
 $userId = $_SESSION['user_id'];
-$data = $_SESSION['import_data'] ?? null;
 
-if (!$data) {
-    die('No data to import. Please upload a DDD file first.');
+// Get import data from session
+if (empty($_SESSION['import_data'])) {
+    die('No import data found. Please upload a DDD file first.');
 }
 
-// Create a user-specific database
-$userDbName = "mytacho_user_" . $userId;
-$pdo->exec("CREATE DATABASE IF NOT EXISTS `$userDbName` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-$userDb = new PDO($dsn . ";dbname=$userDbName", $dbUser, $dbPass, $pdoOptions);
+$data = $_SESSION['import_data'];
 
-// Create events table if not exists
-$userDb->exec("
-CREATE TABLE IF NOT EXISTS `events` (
-    `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `timestamp` DATETIME,
-    `event_type` INT,
-    `vehicle_registration` VARCHAR(32) DEFAULT NULL,
-    `vehicle_country` VARCHAR(4) DEFAULT NULL,
-    `extra_data` JSON DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-");
+// Define per-user database
+$userDb = "mytacho_user_" . $userId;
 
-$insertStmt = $userDb->prepare("
-    INSERT INTO `events` (`timestamp`, `event_type`, `vehicle_registration`, `vehicle_country`, `extra_data`)
-    VALUES (:timestamp, :event_type, :vehicle_registration, :vehicle_country, :extra_data)
-");
+try {
+    // 1. Create per-user database if it doesn't exist
+    $pdo->exec("CREATE DATABASE IF NOT EXISTS `$userDb` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
 
-$recordsImported = 0;
+    // 2. Connect to the user-specific database
+    $pdoUser = new PDO(
+        "mysql:host=127.0.0.1;dbname=$userDb;charset=utf8mb4",
+        $dbUser,
+        $dbPass,
+        $pdoOptions
+    );
 
-// Loop through card events
-$cardEventsArray = $data['card_event_data_1']['card_event_records_array'] ?? [];
+    // 3. Create events table if not exists
+    $pdoUser->exec("
+        CREATE TABLE IF NOT EXISTS events (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            event_type INT,
+            event_begin DATETIME NULL,
+            event_end DATETIME NULL,
+            vehicle_registration VARCHAR(50),
+            vehicle_nation INT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ");
 
-foreach ($cardEventsArray as $recordGroup) {
-    foreach ($recordGroup['card_event_records'] ?? [] as $record) {
-        $ts = $record['event_begin_time'] ?? null;
+    // 4. Prepare insert statement
+    $stmt = $pdoUser->prepare("
+        INSERT INTO events (event_type, event_begin, event_end, vehicle_registration, vehicle_nation)
+        VALUES (:type, :begin, :end, :reg, :nation)
+    ");
 
-        // Skip if timestamp is null
-        if (!$ts) continue;
+    $recordCount = 0;
 
-        // Convert ISO8601 UTC to MySQL DATETIME
-        $dt = date('Y-m-d H:i:s', strtotime($ts));
+    // 5. Loop through all card events in the JSON
+    if (!empty($data['card_event_data_1']['card_event_records_array'])) {
+        foreach ($data['card_event_data_1']['card_event_records_array'] as $eventGroup) {
+            foreach ($eventGroup['card_event_records'] as $event) {
+                // Skip empty events
+                if (empty($event['event_type']) || empty($event['event_begin_time'])) {
+                    continue;
+                }
 
-        $vehicle = $record['event_vehicle_registration'] ?? [];
-        $vehicleReg = $vehicle['vehicle_registration_number'] ?? null;
-        $vehicleCountry = $vehicle['vehicle_registration_nation'] ?? null;
+                // Convert ISO 8601 to MySQL DATETIME
+                $begin = date('Y-m-d H:i:s', strtotime($event['event_begin_time']));
+                $end = isset($event['event_end_time']) ? date('Y-m-d H:i:s', strtotime($event['event_end_time'])) : null;
 
-        $insertStmt->execute([
-            ':timestamp' => $dt,
-            ':event_type' => $record['event_type'] ?? null,
-            ':vehicle_registration' => $vehicleReg,
-            ':vehicle_country' => $vehicleCountry,
-            ':extra_data' => json_encode($record)
-        ]);
+                $stmt->execute([
+                    ':type' => $event['event_type'],
+                    ':begin' => $begin,
+                    ':end' => $end,
+                    ':reg' => $event['event_vehicle_registration']['vehicle_registration_number'] ?? null,
+                    ':nation' => $event['event_vehicle_registration']['vehicle_registration_nation'] ?? null
+                ]);
 
-        $recordsImported++;
+                $recordCount++;
+            }
+        }
     }
+
+    echo "Import successful! Records imported: $recordCount";
+
+    // Optionally, unset session import data
+    unset($_SESSION['import_data']);
+
+} catch (PDOException $e) {
+    die("Import failed: " . $e->getMessage());
 }
 
-unset($_SESSION['import_data']);
-
-echo "<p>Import successful! Records imported: $recordsImported</p>";
-echo '<p><a href="upload.php">Back to Upload</a></p>';
