@@ -49,6 +49,45 @@ if (isset($_GET['delete_user'])) {
     }
 }
 
+// Handle reset password
+if (isset($_GET['reset_password'])) {
+    $resetUserId = (int)$_GET['reset_password'];
+    if ($resetUserId !== $currentUserId) {
+        $newPassword = bin2hex(random_bytes(4)); // 8 chars
+        $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
+        $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
+        $stmt->execute([$hashedPassword, $resetUserId]);
+        $success = $lang['password_reset'] ?? 'Password reset successfully. New password: ' . $newPassword;
+    } else {
+        $error = $lang['cannot_reset_self'] ?? 'You cannot reset your own password here.';
+    }
+}
+
+// Handle add user
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['new_username'])) {
+    $newUsername = trim($_POST['new_username']);
+    $newPassword = $_POST['new_password'];
+    $newRole = $_POST['new_role'];
+    $newLang = $_POST['new_language'];
+
+    if ($newUsername && $newPassword) {
+        // Check if username exists
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE username = ?");
+        $stmt->execute([$newUsername]);
+        if ($stmt->fetchColumn() == 0) {
+            $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
+            $stmt = $pdo->prepare("INSERT INTO users (username, password, role, language) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$newUsername, $hashedPassword, $newRole, $newLang]);
+            header("Location: admin.php?user_added=1");
+            exit;
+        } else {
+            $error = $lang['username_exists'] ?? 'Username already exists.';
+        }
+    } else {
+        $error = $lang['username_password_required'] ?? 'Username and password are required.';
+    }
+}
+
 // Load settings
 $stmt = $pdo->query("SELECT setting_key, setting_value FROM settings");
 $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
@@ -90,6 +129,12 @@ $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
         <?php if (isset($_GET['user_deleted'])): ?>
           <div class="alert alert-success"><?= $lang['user_deleted'] ?? 'User deleted successfully.' ?></div>
         <?php endif; ?>
+        <?php if (isset($_GET['user_added'])): ?>
+          <div class="alert alert-success"><?= $lang['user_added'] ?? 'User added successfully.' ?></div>
+        <?php endif; ?>
+        <?php if (!empty($success)): ?>
+          <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
+        <?php endif; ?>
         <?php if (!empty($error)): ?>
           <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
         <?php endif; ?>
@@ -112,6 +157,43 @@ $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
             </div>
             <div class="card-footer">
               <button type="submit" class="btn btn-primary"><?= $lang['save'] ?? 'Save' ?></button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Add User Form -->
+        <div class="card card-success mt-4">
+          <div class="card-header">
+            <h3 class="card-title"><?= $lang['add_user'] ?? 'Add New User' ?></h3>
+          </div>
+          <form method="post">
+            <div class="card-body">
+              <div class="form-group">
+                <label><?= $lang['username'] ?? 'Username' ?></label>
+                <input type="text" class="form-control" name="new_username" required>
+              </div>
+              <div class="form-group">
+                <label><?= $lang['password'] ?? 'Password' ?></label>
+                <input type="password" class="form-control" name="new_password" required>
+              </div>
+              <div class="form-group">
+                <label><?= $lang['role'] ?? 'Role' ?></label>
+                <select class="form-control" name="new_role">
+                  <option value="user"><?= $lang['user'] ?? 'User' ?></option>
+                  <option value="admin"><?= $lang['admin'] ?? 'Admin' ?></option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label><?= $lang['language'] ?? 'Language' ?></label>
+                <select class="form-control" name="new_language">
+                  <option value="en">English</option>
+                  <option value="de">Deutsch</option>
+                  <option value="fr">Français</option>
+                </select>
+              </div>
+            </div>
+            <div class="card-footer">
+              <button type="submit" class="btn btn-success"><?= $lang['add_user'] ?? 'Add User' ?></button>
             </div>
           </form>
         </div>
@@ -144,6 +226,7 @@ $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     <td>
                       <?php if ($user['id'] !== $currentUserId): ?>
                         <a href="admin.php?delete_user=<?= $user['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('<?= $lang['confirm_delete_user'] ?? 'Are you sure you want to delete this user?' ?>')"><?= $lang['delete'] ?? 'Delete' ?></a>
+                        <a href="admin.php?reset_password=<?= $user['id'] ?>" class="btn btn-sm btn-warning" onclick="return confirm('<?= $lang['confirm_reset_password'] ?? 'Reset password for this user?' ?>')"><?= $lang['reset_password'] ?? 'Reset Password' ?></a>
                       <?php else: ?>
                         <span class="text-muted"><?= $lang['cannot_delete_self'] ?? 'Protected' ?></span>
                       <?php endif; ?>
