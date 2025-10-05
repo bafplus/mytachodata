@@ -21,7 +21,7 @@ $pdoOptions = [
     PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
 ];
 
-// Try to connect to per-user DB
+// Connect to per-user DB
 try {
     $userPdo = new PDO(
         "mysql:host={$dbHost};dbname={$userDbName};charset=utf8mb4",
@@ -31,18 +31,7 @@ try {
     );
 } catch (PDOException $e) {
     if (strpos($e->getMessage(), 'Unknown database') !== false) {
-        require_once __DIR__ . '/inc/header.php';
-        require_once __DIR__ . '/inc/sidebar.php';
-        echo "<div class='content-wrapper'>
-                <section class='content'>
-                    <div class='container-fluid mt-4'>
-                        <div class='alert alert-info'>
-                            No data imported yet. Please upload your first DDD file.
-                        </div>
-                    </div>
-                </section>
-              </div>";
-        require_once __DIR__ . '/inc/footer.php';
+        echo "<div class='alert alert-info'>No data imported yet. Please upload your first DDD file.</div>";
         exit;
     } else {
         die("Could not connect to user database: " . htmlspecialchars($e->getMessage()));
@@ -50,29 +39,24 @@ try {
 }
 
 // Fetch summary statistics for dashboard
-$summary = [];
+$summary = [
+    'driver' => 'Unknown',
+    'card' => 'Unknown',
+    'vehicles' => 0,
+    'events' => 0,
+    'faults' => 0
+];
 
 try {
-    // Unique vehicles used
+    // Driver info: combine first + last name
     $stmt = $userPdo->query("
-        SELECT COUNT(DISTINCT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.vehicle_registration_number'))) AS vehicles
-        FROM card_vehicles_used_1
-    ");
-    $summary['vehicles'] = intval($stmt->fetchColumn() ?: 0);
-
-    // Total events
-    $stmt = $userPdo->query("SELECT COUNT(*) FROM card_event_data_1");
-    $summary['events'] = intval($stmt->fetchColumn() ?: 0);
-
-    // Total faults
-    $stmt = $userPdo->query("SELECT COUNT(*) FROM card_fault_data_1");
-    $summary['faults'] = intval($stmt->fetchColumn() ?: 0);
-
-    // Driver info (take first non-empty name)
-    $stmt = $userPdo->query("
-        SELECT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.driver_name')) AS driver
-        FROM driver_card_application_identification_1
-        WHERE JSON_UNQUOTE(JSON_EXTRACT(raw,'$.driver_name')) IS NOT NULL
+        SELECT 
+            CONCAT_WS(' ',
+                JSON_UNQUOTE(JSON_EXTRACT(raw,'$.driver_card_holder.first_name')),
+                JSON_UNQUOTE(JSON_EXTRACT(raw,'$.driver_card_holder.last_name'))
+            ) AS driver
+        FROM card_identification_and_driver_card_holder_identification_1
+        WHERE JSON_UNQUOTE(JSON_EXTRACT(raw,'$.driver_card_holder.first_name')) IS NOT NULL
         LIMIT 1
     ");
     $summary['driver'] = $stmt->fetchColumn() ?: 'Unknown';
@@ -80,14 +64,29 @@ try {
     // Card number
     $stmt = $userPdo->query("
         SELECT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.card_number')) AS card_number
-        FROM card_icc_identification_1
+        FROM card_identification_and_driver_card_holder_identification_1
         WHERE JSON_UNQUOTE(JSON_EXTRACT(raw,'$.card_number')) IS NOT NULL
         LIMIT 1
     ");
     $summary['card'] = $stmt->fetchColumn() ?: 'Unknown';
 
+    // Unique vehicles used
+    $stmt = $userPdo->query("
+        SELECT COUNT(DISTINCT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.vehicle_registration_number'))) AS vehicles
+        FROM card_vehicles_used_1
+    ");
+    $summary['vehicles'] = intval($stmt->fetchColumn() ?: 0);
+
+    // Events
+    $stmt = $userPdo->query("SELECT COUNT(*) FROM card_event_data_1");
+    $summary['events'] = intval($stmt->fetchColumn() ?: 0);
+
+    // Faults
+    $stmt = $userPdo->query("SELECT COUNT(*) FROM card_fault_data_1");
+    $summary['faults'] = intval($stmt->fetchColumn() ?: 0);
+
 } catch (PDOException $e) {
-    // ignore errors in case tables don't exist yet
+    // ignore missing table errors
 }
 
 // Include layout
@@ -112,9 +111,7 @@ require_once __DIR__ . '/inc/sidebar.php';
                             <h3><?= htmlspecialchars($summary['driver']) ?></h3>
                             <p>Driver Name</p>
                         </div>
-                        <div class="icon">
-                            <i class="fas fa-user"></i>
-                        </div>
+                        <div class="icon"><i class="fas fa-user"></i></div>
                     </div>
                 </div>
 
@@ -125,9 +122,7 @@ require_once __DIR__ . '/inc/sidebar.php';
                             <h3><?= htmlspecialchars($summary['card']) ?></h3>
                             <p>Card Number</p>
                         </div>
-                        <div class="icon">
-                            <i class="fas fa-id-card"></i>
-                        </div>
+                        <div class="icon"><i class="fas fa-id-card"></i></div>
                     </div>
                 </div>
 
@@ -138,9 +133,7 @@ require_once __DIR__ . '/inc/sidebar.php';
                             <h3><?= $summary['vehicles'] ?></h3>
                             <p>Unique Vehicles Used</p>
                         </div>
-                        <div class="icon">
-                            <i class="fas fa-truck"></i>
-                        </div>
+                        <div class="icon"><i class="fas fa-truck"></i></div>
                     </div>
                 </div>
 
@@ -151,31 +144,25 @@ require_once __DIR__ . '/inc/sidebar.php';
                             <h3><?= $summary['events'] ?></h3>
                             <p>Events Recorded</p>
                         </div>
-                        <div class="icon">
-                            <i class="fas fa-bolt"></i>
-                        </div>
+                        <div class="icon"><i class="fas fa-bolt"></i></div>
                     </div>
                 </div>
 
-            </div>
-
-            <div class="row">
                 <!-- Faults -->
-                <div class="col-lg-3 col-6">
+                <div class="col-lg-3 col-6 mt-2">
                     <div class="small-box bg-secondary">
                         <div class="inner">
                             <h3><?= $summary['faults'] ?></h3>
                             <p>Faults</p>
                         </div>
-                        <div class="icon">
-                            <i class="fas fa-exclamation-triangle"></i>
-                        </div>
+                        <div class="icon"><i class="fas fa-exclamation-triangle"></i></div>
                     </div>
                 </div>
-            </div>
 
+            </div>
         </div>
     </div>
 </div>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
+
