@@ -25,13 +25,21 @@ $currentUsername = $userData['username'];
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['site_name'])) {
     $site_name = $_POST['site_name'];
     $support_email = $_POST['support_email'];
+    $allow_registration = isset($_POST['allow_registration']) ? '1' : '0';
 
     $stmt = $pdo->prepare("
         INSERT INTO settings (setting_key, setting_value)
-        VALUES ('site_name', :site_name), ('support_email', :support_email)
+        VALUES 
+            ('site_name', :site_name),
+            ('support_email', :support_email),
+            ('allow_registration', :allow_registration)
         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)
     ");
-    $stmt->execute([':site_name' => $site_name, ':support_email' => $support_email]);
+    $stmt->execute([
+        ':site_name' => $site_name,
+        ':support_email' => $support_email,
+        ':allow_registration' => $allow_registration
+    ]);
     header("Location: admin.php?saved=1");
     exit;
 }
@@ -93,6 +101,7 @@ $stmt = $pdo->query("SELECT setting_key, setting_value FROM settings");
 $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 $site_name = $settings['site_name'] ?? 'MyTacho';
 $support_email = $settings['support_email'] ?? 'support@mytacho.com';
+$allow_registration = $settings['allow_registration'] ?? '1';
 
 // Load all users
 $stmt = $pdo->query("SELECT id, username, role, language, created_at FROM users ORDER BY id ASC");
@@ -153,6 +162,12 @@ $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
               <div class="form-group">
                 <label><?= $lang['support_email'] ?? 'Support Email' ?></label>
                 <input type="email" class="form-control" name="support_email" value="<?= htmlspecialchars($support_email) ?>">
+              </div>
+              <div class="form-group">
+                <div class="form-check">
+                  <input type="checkbox" class="form-check-input" id="allow_registration" name="allow_registration" value="1" <?= $allow_registration === '1' ? 'checked' : '' ?>>
+                  <label class="form-check-label" for="allow_registration"><?= $lang['allow_registration'] ?? 'Allow User Registration' ?></label>
+                </div>
               </div>
             </div>
             <div class="card-footer">
@@ -251,3 +266,4 @@ $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <script src="dist/js/adminlte.min.js"></script>
 </body>
 </html>
+
