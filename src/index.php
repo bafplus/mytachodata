@@ -68,16 +68,20 @@ try {
     $stmt = $userPdo->query("SELECT COUNT(*) FROM card_fault_data_1");
     $summary['faults'] = intval($stmt->fetchColumn() ?: 0);
 
-    // Driver surname (from correct JSON path)
+    // Driver full name
     $stmt = $userPdo->query("
-        SELECT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.driver_card_holder_identification.card_holder_name.holder_surname')) AS driver
+        SELECT CONCAT(
+            JSON_UNQUOTE(JSON_EXTRACT(raw,'$.driver_card_holder_identification.card_holder_name.holder_first_names')),
+            ' ',
+            JSON_UNQUOTE(JSON_EXTRACT(raw,'$.driver_card_holder_identification.card_holder_name.holder_surname'))
+        ) AS driver
         FROM card_identification_and_driver_card_holder_identification_1
         WHERE JSON_UNQUOTE(JSON_EXTRACT(raw,'$.driver_card_holder_identification.card_holder_name.holder_surname')) IS NOT NULL
         LIMIT 1
     ");
     $summary['driver'] = $stmt->fetchColumn() ?: 'Unknown';
 
-    // Card number (from correct JSON path)
+    // Card number
     $stmt = $userPdo->query("
         SELECT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.card_identification.card_number')) AS card_number
         FROM card_identification_and_driver_card_holder_identification_1
@@ -85,6 +89,16 @@ try {
         LIMIT 1
     ");
     $summary['card'] = $stmt->fetchColumn() ?: 'Unknown';
+
+    // Last used vehicle registration number
+    $stmt = $userPdo->query("
+        SELECT JSON_UNQUOTE(JSON_EXTRACT(raw,'$.vehicle_registration_number')) AS reg
+        FROM card_activity_daily_1
+        WHERE JSON_UNQUOTE(JSON_EXTRACT(raw,'$.vehicle_registration_number')) IS NOT NULL
+        ORDER BY id DESC
+        LIMIT 1
+    ");
+    $summary['last_vehicle'] = $stmt->fetchColumn() ?: 'Unknown';
 
 } catch (PDOException $e) {
     // ignore errors in case tables don't exist yet
@@ -156,7 +170,6 @@ require_once __DIR__ . '/inc/sidebar.php';
                         </div>
                     </div>
                 </div>
-
             </div>
 
             <div class="row">
@@ -169,6 +182,19 @@ require_once __DIR__ . '/inc/sidebar.php';
                         </div>
                         <div class="icon">
                             <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Last used vehicle -->
+                <div class="col-lg-3 col-6">
+                    <div class="small-box bg-primary">
+                        <div class="inner">
+                            <h3><?= htmlspecialchars($summary['last_vehicle']) ?></h3>
+                            <p>Last Vehicle Used</p>
+                        </div>
+                        <div class="icon">
+                            <i class="fas fa-car"></i>
                         </div>
                     </div>
                 </div>
