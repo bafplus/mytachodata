@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/inc/db.php';
-require_once __DIR__ . '/inc/lang.php';
 
+// Session and login check
 if (!isset($_SESSION)) session_start();
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
@@ -20,7 +20,11 @@ if (!$user) {
     exit;
 }
 
-// --- Connect to per-user database ---
+// Include header/sidebar
+require_once __DIR__ . '/inc/header.php';
+require_once __DIR__ . '/inc/sidebar.php';
+
+// --- Per-user DB connection setup ---
 $dbHost = getenv('DB_HOST') ?: '127.0.0.1';
 $dbUser = getenv('DB_USER') ?: 'mytacho_user';
 $dbPass = getenv('DB_PASS') ?: 'mytacho_pass';
@@ -32,47 +36,31 @@ $pdoOptions = [
 
 $userDbName = "mytacho_user_" . $userId;
 
+// Check if user DB exists
 try {
-    $userPdo = new PDO(
-        "mysql:host={$dbHost};dbname={$userDbName};charset=utf8mb4",
-        $dbUser,
-        $dbPass,
-        $pdoOptions
-    );
+    $dbExistsStmt = $pdo->query("SHOW DATABASES LIKE '{$userDbName}'");
+    $dbExists = $dbExistsStmt->rowCount() > 0;
 } catch (PDOException $e) {
-    die("Could not connect to user database: " . htmlspecialchars($e->getMessage()));
+    $dbExists = false;
 }
 
-// --- Fetch summary stats ---
-$totals = [];
-$tables = [
-    'card_event_data_1' => 'Events',
-    'card_driver_activity_1' => 'Driver Activities',
-    'card_vehicles_used_1' => 'Vehicles Used'
-];
-foreach ($tables as $tbl => $label) {
+if ($dbExists) {
     try {
-        $stmt = $userPdo->query("SELECT COUNT(*) AS cnt FROM `$tbl`");
-        $totals[$tbl] = $stmt->fetchColumn();
-    } catch (Exception $e) {
-        $totals[$tbl] = 0;
+        $userPdo = new PDO(
+            "mysql:host={$dbHost};dbname={$userDbName};charset=utf8mb4",
+            $dbUser,
+            $dbPass,
+            $pdoOptions
+        );
+    } catch (PDOException $e) {
+        die("<div class='alert alert-danger'>Could not connect to user database: " . htmlspecialchars($e->getMessage()) . "</div>");
     }
+} else {
+    $userPdo = null;
 }
-
-// --- Fetch recent events ---
-$recentEvents = [];
-try {
-    $stmt = $userPdo->query("SELECT `timestamp`,`label` FROM `card_event_data_1` ORDER BY `timestamp` DESC LIMIT 10");
-    $recentEvents = $stmt->fetchAll();
-} catch (Exception $e) {
-    $recentEvents = [];
-}
-
-// --- Include AdminLTE layout ---
-require_once __DIR__ . '/inc/header.php';
-require_once __DIR__ . '/inc/sidebar.php';
 ?>
 
+<!-- Dashboard content -->
 <div class="content-wrapper">
     <div class="content-header">
         <div class="container-fluid">
@@ -84,82 +72,43 @@ require_once __DIR__ . '/inc/sidebar.php';
         <div class="container-fluid">
             <p>Welcome, <?= htmlspecialchars($user['username']) ?>!</p>
 
-            <!-- Summary cards -->
-            <div class="row">
-                <?php foreach ($tables as $tbl => $label): ?>
-                    <div class="col-lg-4 col-6">
-                        <div class="small-box <?= $tbl == 'card_event_data_1' ? 'bg-info' : ($tbl == 'card_driver_activity_1' ? 'bg-success' : 'bg-warning') ?>">
-                            <div class="inner">
-                                <h3><?= intval($totals[$tbl]) ?></h3>
-                                <p><?= htmlspecialchars($label) ?></p>
-                            </div>
-                            <div class="icon">
-                                <i class="<?= $tbl == 'card_event_data_1' ? 'fas fa-calendar-alt' : ($tbl == 'card_driver_activity_1' ? 'fas fa-user-clock' : 'fas fa-truck') ?>"></i>
+            <?php if (!$dbExists): ?>
+                <div class="alert alert-info">
+                    No data imported yet. Please <a href="upload.php">upload a DDD file</a> to start.
+                </div>
+            <?php else: ?>
+                <!-- Example: Display some summary info -->
+                <div class="row">
+                    <?php
+                    // Count number of records per top-level table
+                    $summary = [];
+                    $tablesStmt = $userPdo->query("SHOW TABLES");
+                    $tables = $tablesStmt->fetchAll(PDO::FETCH_COLUMN);
+
+                    foreach ($tables as $table) {
+                        $cntStmt = $userPdo->query("SELECT COUNT(*) FROM `{$table}`");
+                        $count = $cntStmt->fetchColumn();
+                        $summary[$table] = $count;
+                    }
+                    ?>
+
+                    <?php foreach ($summary as $tbl => $cnt): ?>
+                        <div class="col-md-3">
+                            <div class="small-box bg-primary">
+                                <div class="inner">
+                                    <h3><?= intval($cnt) ?></h3>
+                                    <p><?= htmlspecialchars($tbl) ?></p>
+                                </div>
+                                <div class="icon">
+                                    <i class="fas fa-database"></i>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                <?php endforeach; ?>
-            </div>
-
-            <!-- Recent events table -->
-            <div class="card">
-                <div class="card-header"><h3 class="card-title">Recent Events</h3></div>
-                <div class="card-body table-responsive p-0">
-                    <table class="table table-striped table-hover">
-                        <thead>
-                            <tr>
-                                <th>Timestamp</th>
-                                <th>Event</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        <?php if ($recentEvents): ?>
-                            <?php foreach ($recentEvents as $e): ?>
-                                <tr>
-                                    <td><?= htmlspecialchars($e['timestamp']) ?></td>
-                                    <td><?= htmlspecialchars($e['label']) ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        <?php else: ?>
-                            <tr><td colspan="2">No events found</td></tr>
-                        <?php endif; ?>
-                        </tbody>
-                    </table>
+                    <?php endforeach; ?>
                 </div>
-            </div>
-
-            <!-- Placeholder for charts -->
-            <div class="card">
-                <div class="card-header"><h3 class="card-title">Charts</h3></div>
-                <div class="card-body">
-                    <canvas id="activityChart" style="height:250px"></canvas>
-                </div>
-            </div>
+            <?php endif; ?>
         </div>
     </div>
 </div>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
-
-<!-- Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-    const ctx = document.getElementById('activityChart').getContext('2d');
-    const chart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: [], // fill with dates
-            datasets: [{
-                label: 'Events over time',
-                data: [], // fill with counts
-                borderColor: 'rgba(60,141,188,1)',
-                backgroundColor: 'rgba(60,141,188,0.2)',
-                fill: true
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false
-        }
-    });
-</script>
