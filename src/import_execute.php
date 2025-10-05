@@ -1,12 +1,10 @@
 <?php
-// import_execute.php - deduplicated version
-
+// import_execute.php
 require_once __DIR__ . '/inc/db.php';
 require_once __DIR__ . '/inc/lang.php';
 
 if (!isset($_SESSION)) session_start();
 
-// require login
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
@@ -15,10 +13,14 @@ if (!isset($_SESSION['user_id'])) {
 $userId = intval($_SESSION['user_id']);
 $data = $_SESSION['import_data'] ?? null;
 if (!$data) {
-    die("No parsed import data found in session. Please upload a DDD file first.");
+    die(json_encode(['error' => 'No parsed import data found in session. Please upload a DDD file first.']));
 }
 
-// --- DB credentials ---
+// Detect AJAX
+$isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
+          strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+
+// --- DB setup ---
 $dbHost = getenv('DB_HOST') ?: '127.0.0.1';
 $dbUser = getenv('DB_USER') ?: 'mytacho_user';
 $dbPass = getenv('DB_PASS') ?: 'mytacho_pass';
@@ -36,11 +38,10 @@ if (isset($pdo) && $pdo instanceof PDO) {
     try {
         $adminPdo = new PDO("mysql:host={$dbHost};dbname={$dbMain};charset=utf8mb4", $dbUser, $dbPass, $pdoOptions);
     } catch (PDOException $e) {
-        die("Could not connect to main database: " . htmlspecialchars($e->getMessage()));
+        die(json_encode(['error' => "Could not connect to main DB: " . $e->getMessage()]));
     }
 }
 
-// --- Utility functions ---
 function safe_table_name(string $name): string {
     $n = preg_replace('/[^a-z0-9_]/i', '_', $name);
     $n = preg_replace('/_{2,}/', '_', $n);
@@ -52,11 +53,9 @@ function safe_table_name(string $name): string {
 
 function find_timestamp($rec) {
     if (!is_array($rec)) return null;
-    $candidates = [
-        'event_begin_time','event_end_time','timestamp','start_time','first_use','last_use',
-        'issue_date','expiry_date','date','activity_date','record_time','time'
-    ];
-    foreach ($candidates as $k) {
+    $keys = ['event_begin_time','event_end_time','timestamp','start_time','first_use','last_use',
+        'issue_date','expiry_date','date','activity_date','record_time','time'];
+    foreach ($keys as $k) {
         if (!empty($rec[$k]) && is_string($rec[$k])) {
             $t = strtotime($rec[$k]);
             if ($t !== false) return date('Y-m-d H:i:s', $t);
@@ -74,51 +73,40 @@ function find_timestamp($rec) {
 
 function find_label($rec) {
     if (!is_array($rec)) return null;
-    $candidates = ['event_type','activity_type','control_type','registration','vehicle_registration_number','card_number','type','name','reason'];
-    foreach ($candidates as $k) {
-        if (!empty($rec[$k]) && !is_array($rec[$k])) {
-            return (string)$rec[$k];
-        }
+    $keys = ['event_type','activity_type','control_type','registration','vehicle_registration_number','card_number','type','name','reason'];
+    foreach ($keys as $k) {
+        if (!empty($rec[$k]) && !is_array($rec[$k])) return (string)$rec[$k];
     }
     return null;
 }
 
-// --- User DB setup ---
+// --- User DB ---
 $userDbName = "mytacho_user_" . $userId;
-try {
-    $adminPdo->exec("CREATE DATABASE IF NOT EXISTS `{$userDbName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-} catch (PDOException $e) {
-    die("Failed creating user database: " . htmlspecialchars($e->getMessage()));
-}
+$adminPdo->exec("CREATE DATABASE IF NOT EXISTS `{$userDbName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
 
 try {
     $userPdo = new PDO("mysql:host={$dbHost};dbname={$userDbName};charset=utf8mb4", $dbUser, $dbPass, $pdoOptions);
     $userPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (PDOException $e) {
-    die("Failed connecting to user DB: " . htmlspecialchars($e->getMessage()));
+    die(json_encode(['error' => "Failed connecting to user DB: " . $e->getMessage()]));
 }
 
+// --- Import ---
 $summary = [];
 
-// --- Process each block ---
 foreach ($data as $topKey => $block) {
     $table = safe_table_name($topKey);
 
-    // create table with unique hash to prevent duplicates
-    $createSql = "
+    $userPdo->exec("
         CREATE TABLE IF NOT EXISTS `{$table}` (
             id INT AUTO_INCREMENT PRIMARY KEY,
             `timestamp` DATETIME NULL,
             `label` VARCHAR(255) NULL,
             `raw` JSON NULL,
-            `hash` CHAR(32) NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE KEY `uniq_hash` (`hash`)
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    ";
-    $userPdo->exec($createSql);
+    ");
 
-    // flatten items
     $items = [];
     if (is_array($block)) {
         if (isset($block['card_event_records_array']) && is_array($block['card_event_records_array'])) {
@@ -142,29 +130,19 @@ foreach ($data as $topKey => $block) {
             }
             if (!$found) $items[] = $block;
         }
-    } else {
-        $items[] = ['value' => $block];
-    }
+    } else $items[] = ['value' => $block];
 
-    // insert with deduplication
     $inserted = 0;
     if (!empty($items)) {
         $userPdo->beginTransaction();
         try {
-            $insertStmt = $userPdo->prepare("INSERT IGNORE INTO `{$table}` (`timestamp`,`label`,`raw`,`hash`) VALUES (:timestamp,:label,:raw,:hash)");
+            $insertStmt = $userPdo->prepare("INSERT INTO `{$table}` (`timestamp`,`label`,`raw`) VALUES (:timestamp,:label,:raw)");
             foreach ($items as $rec) {
                 $ts = find_timestamp($rec);
                 $label = find_label($rec);
                 $raw = json_encode($rec, JSON_UNESCAPED_UNICODE);
-                $hash = md5($raw);
-
-                $insertStmt->execute([
-                    ':timestamp' => $ts,
-                    ':label' => $label,
-                    ':raw' => $raw,
-                    ':hash' => $hash
-                ]);
-                $inserted += $insertStmt->rowCount();
+                $insertStmt->execute([':timestamp'=>$ts, ':label'=>$label, ':raw'=>$raw]);
+                $inserted++;
             }
             $userPdo->commit();
         } catch (PDOException $e) {
@@ -173,13 +151,18 @@ foreach ($data as $topKey => $block) {
             continue;
         }
     }
-
     $summary[$table] = $inserted;
 }
 
 unset($_SESSION['import_data']);
 
-// --- Output summary ---
+if ($isAjax) {
+    header('Content-Type: application/json');
+    echo json_encode(['summary'=>$summary]);
+    exit;
+}
+
+// --- HTML fallback ---
 ?>
 <!DOCTYPE html>
 <html lang="<?= htmlspecialchars($_SESSION['language'] ?? 'en') ?>">
@@ -193,7 +176,6 @@ unset($_SESSION['import_data']);
 <div class="wrapper">
   <?php require_once __DIR__ . '/inc/header.php'; ?>
   <?php require_once __DIR__ . '/inc/sidebar.php'; ?>
-
   <div class="content-wrapper">
     <section class="content">
       <div class="container-fluid mt-4">
@@ -202,7 +184,7 @@ unset($_SESSION['import_data']);
           <div class="card-body">
             <ul>
 <?php foreach ($summary as $tbl => $cnt): ?>
-              <li><strong><?= htmlspecialchars($tbl) ?></strong>: <?= is_int($cnt) ? intval($cnt) . " rows inserted" : htmlspecialchars($cnt) ?></li>
+              <li><strong><?= htmlspecialchars($tbl) ?></strong>: <?= is_int($cnt) ? intval($cnt) . " rows" : htmlspecialchars($cnt) ?></li>
 <?php endforeach; ?>
             </ul>
             <a href="upload.php" class="btn btn-primary">Back to Upload</a>
@@ -211,12 +193,11 @@ unset($_SESSION['import_data']);
       </div>
     </section>
   </div>
-
   <?php require_once __DIR__ . '/inc/footer.php'; ?>
 </div>
-
 <script src="/adminlte/plugins/jquery/jquery.min.js"></script>
 <script src="/adminlte/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
 <script src="/adminlte/dist/js/adminlte.min.js"></script>
 </body>
 </html>
+
