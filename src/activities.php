@@ -21,7 +21,7 @@ $pdoOptions = [
     PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
 ];
 
-// Try to connect to per-user DB
+// Connect to per-user DB
 try {
     $userPdo = new PDO(
         "mysql:host={$dbHost};dbname={$userDbName};charset=utf8mb4",
@@ -33,13 +33,10 @@ try {
     die("Could not connect to user database: " . htmlspecialchars($e->getMessage()));
 }
 
-// Selected date (default: today)
-$selectedDate = $_GET['date'] ?? date('Y-m-d');
-
-// Fetch activities for that day
+// Fetch ALL activities
 $activities = [];
 try {
-    $stmt = $userPdo->prepare("
+    $stmt = $userPdo->query("
         SELECT 
             j.activity,
             j.vehicle_registration_number AS vehicle,
@@ -54,13 +51,10 @@ try {
                     activity_change_time VARCHAR(50) PATH '$.activity_change_time'
                 )
              ) AS j
-        WHERE DATE(STR_TO_DATE(j.activity_change_time, '%Y-%m-%dT%H:%i:%sZ')) = :date
         ORDER BY start_time ASC
     ");
-    $stmt->execute([':date' => $selectedDate]);
     $activities = $stmt->fetchAll();
 } catch (PDOException $e) {
-    // Table may not exist yet or structure may differ
     $activities = [];
 }
 
@@ -72,20 +66,14 @@ require_once __DIR__ . '/inc/sidebar.php';
 <div class="content-wrapper">
     <div class="content-header">
         <div class="container-fluid">
-            <h1 class="m-0">Driver Activities</h1>
-            <form method="get" class="form-inline my-2">
-                <label for="date" class="mr-2">Select Date:</label>
-                <input type="date" id="date" name="date" class="form-control mr-2"
-                       value="<?= htmlspecialchars($selectedDate) ?>">
-                <button type="submit" class="btn btn-primary">Show</button>
-            </form>
+            <h1 class="m-0">All Driver Activities</h1>
         </div>
     </div>
 
     <div class="content">
         <div class="container-fluid">
             <?php if (empty($activities)): ?>
-                <div class="alert alert-info mt-3">No activities found for this date.</div>
+                <div class="alert alert-info mt-3">No activities found.</div>
             <?php else: ?>
                 <table class="table table-bordered table-striped mt-3">
                     <thead>
@@ -111,4 +99,3 @@ require_once __DIR__ . '/inc/sidebar.php';
 </div>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
-
