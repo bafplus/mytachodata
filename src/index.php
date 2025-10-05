@@ -20,34 +20,24 @@ $pdoOptions = [
 ];
 
 try {
-    $mainPdo = new PDO(
-        "mysql:host={$dbHost};dbname=" . (getenv('DB_NAME') ?: 'mytacho') . ";charset=utf8mb4",
-        $dbUser,
-        $dbPass,
-        $pdoOptions
-    );
-} catch (PDOException $e) {
-    die("Could not connect to main database: " . htmlspecialchars($e->getMessage()));
-}
-
-// Fetch user info
-$stmt = $mainPdo->prepare("SELECT id, username FROM users WHERE id = ?");
-$stmt->execute([$userId]);
-$user = $stmt->fetch();
-if (!$user) die("User not found.");
-
-// Connect to user DB if exists
-try {
     $userPdo = new PDO(
         "mysql:host={$dbHost};dbname={$userDbName};charset=utf8mb4",
         $dbUser,
         $dbPass,
         $pdoOptions
     );
-    $userPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    $userDbExists = true;
 } catch (PDOException $e) {
-    $userDbExists = false;
+    die("Could not connect to user database: " . htmlspecialchars($e->getMessage()));
+}
+
+// Fetch all tables for this user DB
+$tables = $userPdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
+
+// Gather table row counts
+$tableCounts = [];
+foreach ($tables as $table) {
+    $stmt = $userPdo->query("SELECT COUNT(*) FROM `$table`");
+    $tableCounts[$table] = (int)$stmt->fetchColumn();
 }
 
 require_once __DIR__ . '/inc/header.php';
@@ -58,60 +48,32 @@ require_once __DIR__ . '/inc/sidebar.php';
     <div class="content-header">
         <div class="container-fluid">
             <h1 class="m-0">Dashboard</h1>
+            <p>Welcome, <?= htmlspecialchars($_SESSION['username'] ?? 'User') ?>!</p>
         </div>
     </div>
 
     <div class="content">
         <div class="container-fluid">
-            <p>Welcome, <?= htmlspecialchars($user['username']) ?>!</p>
-
-            <?php if (!$userDbExists): ?>
-                <div class="alert alert-info">
-                    You haven’t imported any data yet. <a href="upload.php">Upload a DDD file</a> to get started.
-                </div>
-            <?php else: ?>
-                <div class="row">
-                    <?php
-                    // Define blocks to show on dashboard
-                    $blocks = [
-                        'card_event_data_1' => 'Events',
-                        'card_driver_activity_1' => 'Driver Activities',
-                        'card_vehicles_used_1' => 'Vehicles Used',
-                        'card_fault_data_1' => 'Faults',
-                        'card_border_crossings' => 'Border Crossings',
-                        'card_load_unload_operations' => 'Load/Unload Ops',
-                        'gnss_accumulated_driving' => 'GNSS Driving'
-                    ];
-
-                    foreach ($blocks as $table => $label):
-                        try {
-                            $count = $userPdo->query("SELECT COUNT(*) FROM `$table`")->fetchColumn();
-                        } catch (PDOException $e) {
-                            $count = 0;
-                        }
-                    ?>
-                        <div class="col-lg-3 col-6">
-                            <div class="small-box bg-info">
-                                <div class="inner">
-                                    <h3><?= intval($count) ?></h3>
-                                    <p><?= htmlspecialchars($label) ?></p>
-                                </div>
-                                <div class="icon">
-                                    <i class="fas fa-database"></i>
-                                </div>
-                                <a href="view_table.php?table=<?= urlencode($table) ?>" class="small-box-footer">
-                                    View <i class="fas fa-arrow-circle-right"></i>
-                                </a>
+            <div class="row">
+                <?php foreach ($tableCounts as $table => $count): ?>
+                    <div class="col-md-3 col-sm-6 mb-3">
+                        <div class="small-box bg-info">
+                            <div class="inner">
+                                <h3><?= $count ?></h3>
+                                <p><?= htmlspecialchars($table) ?></p>
                             </div>
+                            <div class="icon">
+                                <i class="fas fa-database"></i>
+                            </div>
+                            <a href="views/view_table.php?table=<?= urlencode($table) ?>" class="small-box-footer">
+                                View Details <i class="fas fa-arrow-circle-right"></i>
+                            </a>
                         </div>
-                    <?php endforeach; ?>
-                </div>
-
-                <p class="mt-3"><a href="upload.php" class="btn btn-primary">Upload More Data</a></p>
-            <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+            </div>
         </div>
     </div>
 </div>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
-
