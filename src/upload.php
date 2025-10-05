@@ -15,11 +15,33 @@ $userId = $_SESSION['user_id'];
 $error = '';
 $summary = null;
 
+// Recursive flatten function to count records
+function countRecords($data) {
+    $count = 0;
+    foreach ($data as $key => $value) {
+        if (is_array($value)) {
+            if (isset($value['card_event_records_array'])) {
+                foreach ($value['card_event_records_array'] as $group) {
+                    foreach ($group as $items) {
+                        $count += count($items);
+                    }
+                }
+            } elseif (array_values($value) !== $value) {
+                $count += countRecords($value); // associative array
+            } else {
+                $count += count($value); // numeric array
+            }
+        }
+    }
+    return $count;
+}
+
 // Handle file upload
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
     if ($_FILES['ddd_file']['error'] === UPLOAD_ERR_OK) {
         $tmpPath = $_FILES['ddd_file']['tmp_name'];
 
+        // Run parser like import_raw.php
         $cmd = escapeshellcmd("dddparser -card -input " . escapeshellarg($tmpPath) . " -format");
         $jsonOutput = shell_exec($cmd);
 
@@ -30,32 +52,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
             } else {
                 $_SESSION['import_data'] = $data;
 
-                // Count records in nested structure
-                $recordCount = 0;
-                $timestamps = [];
+                // Count all records in JSON
+                $recordCount = countRecords($data);
 
-                foreach ($data as $key => $value) {
-                    if (str_starts_with($key, 'card_event_data')) {
-                        if (!empty($value['card_event_records_array'])) {
-                            foreach ($value['card_event_records_array'] as $arrayItem) {
-                                if (!empty($arrayItem['card_event_records'])) {
-                                    foreach ($arrayItem['card_event_records'] as $record) {
-                                        if (!empty($record['event_begin_time'])) {
-                                            $recordCount++;
-                                            $timestamps[] = $record['event_begin_time'];
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                // Determine earliest and latest timestamp if exists
+                $timestamps = [];
+                $iterator = new RecursiveIteratorIterator(new RecursiveArrayIterator($data));
+                foreach ($iterator as $key => $val) {
+                    if (preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/', $val)) {
+                        $timestamps[] = $val;
                     }
                 }
-
                 sort($timestamps);
+                $startTime = $timestamps[0] ?? null;
+                $endTime = !empty($timestamps) ? end($timestamps) : null;
+
                 $summary = [
                     'records' => $recordCount,
-                    'start' => $timestamps[0] ?? null,
-                    'end' => end($timestamps) ?? null
+                    'start' => $startTime,
+                    'end' => $endTime
                 ];
             }
         } else {
@@ -110,7 +125,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
                         </div>
                         <div class="card-body">
                             <p><?= sprintf($lang['records_found'] ?? 'Records found: %d', $summary['records']) ?></p>
-                            <p><?= sprintf($lang['time_range'] ?? 'Time range: %s - %s', $summary['start'] ?? '-', $summary['end'] ?? '-') ?></p>
+                            <p><?= sprintf(
+                                $lang['time_range'] ?? 'Time range: %s - %s',
+                                $summary['start'] ?? '-',
+                                $summary['end'] ?? '-'
+                            ) ?></p>
                             <a href="import_execute.php" class="btn btn-success"><?= $lang['confirm_import'] ?? 'Confirm Import' ?></a>
                         </div>
                     </div>
@@ -128,4 +147,3 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
 <script src="/adminlte/dist/js/adminlte.min.js"></script>
 </body>
 </html>
-
