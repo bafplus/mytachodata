@@ -1,76 +1,80 @@
 <?php
 require_once __DIR__ . '/inc/db.php';
-require_once __DIR__ . '/inc/lang.php'; // optional for translations
+require_once __DIR__ . '/inc/lang.php';
 
-// Start session
 if (!isset($_SESSION)) session_start();
 
-// Redirect if not logged in
+// Check login
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
 }
 
-// Check if import data exists
-if (empty($_SESSION['import_data'])) {
-    header('Location: import.php');
-    exit;
-}
-
 $userId = $_SESSION['user_id'];
-$importData = $_SESSION['import_data'];
+$error = '';
+$success = '';
 
-// Optional: create a user-specific table if not exists
-$userTable = "user_data_" . (int)$userId;
+// Check if parsed data exists in session
+if (empty($_SESSION['import_data'])) {
+    $error = $lang['no_import_data'] ?? 'No parsed data found. Please upload a file first.';
+} else {
+    $data = $_SESSION['import_data'];
 
-$pdo->exec("
-    CREATE TABLE IF NOT EXISTS `$userTable` (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        timestamp DATETIME,
-        rpm INT,
-        speed FLOAT,
-        coolant_temp FLOAT,
-        voltage FLOAT,
-        latitude FLOAT,
-        longitude FLOAT,
-        fuel_level FLOAT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-");
+    try {
+        $pdo->beginTransaction();
 
-// Insert records
-$records = $importData['records'] ?? [];
-$inserted = 0;
+        // Optional: create a user-specific table (if you want full separation)
+        // Example: user_123_events
+        $tableName = "user_{$userId}_events";
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS `$tableName` (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                event_type INT,
+                event_begin_time DATETIME NULL,
+                event_end_time DATETIME NULL,
+                vehicle_registration_nation INT,
+                vehicle_registration_number VARCHAR(20)
+            )
+        ");
 
-$stmt = $pdo->prepare("
-    INSERT INTO `$userTable` (timestamp, rpm, speed, coolant_temp, voltage, latitude, longitude, fuel_level)
-    VALUES (:timestamp, :rpm, :speed, :coolant_temp, :voltage, :latitude, :longitude, :fuel_level)
-");
+        // Insert all records from parsed data
+        $insertStmt = $pdo->prepare("
+            INSERT INTO `$tableName` 
+            (event_type, event_begin_time, event_end_time, vehicle_registration_nation, vehicle_registration_number) 
+            VALUES (?, ?, ?, ?, ?)
+        ");
 
-foreach ($records as $r) {
-    $stmt->execute([
-        ':timestamp' => $r['timestamp'] ?? null,
-        ':rpm' => $r['rpm'] ?? null,
-        ':speed' => $r['speed'] ?? null,
-        ':coolant_temp' => $r['coolant_temp'] ?? null,
-        ':voltage' => $r['voltage'] ?? null,
-        ':latitude' => $r['latitude'] ?? null,
-        ':longitude' => $r['longitude'] ?? null,
-        ':fuel_level' => $r['fuel_level'] ?? null,
-    ]);
-    $inserted++;
+        $records = $data['records'] ?? [];
+
+        foreach ($records as $record) {
+            $insertStmt->execute([
+                $record['event_type'] ?? 0,
+                $record['event_begin_time'] ?? null,
+                $record['event_end_time'] ?? null,
+                $record['event_vehicle_registration']['vehicle_registration_nation'] ?? 0,
+                $record['event_vehicle_registration']['vehicle_registration_number'] ?? ''
+            ]);
+        }
+
+        $pdo->commit();
+        $success = sprintf($lang['import_success'] ?? 'Successfully imported %d records.', count($records));
+
+        // Clear session data after import
+        unset($_SESSION['import_data']);
+
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        $error = $lang['import_failed'] ?? 'Import failed: ' . $e->getMessage();
+    }
 }
-
-// Clear session import data
-unset($_SESSION['import_data']);
-
 ?>
+
 <!DOCTYPE html>
 <html lang="<?= htmlspecialchars($_SESSION['language'] ?? 'en') ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= $lang['import_complete'] ?? 'Import Complete' ?></title>
+    <title><?= $lang['import_execute'] ?? 'Execute Import' ?></title>
     <link rel="stylesheet" href="/adminlte/plugins/fontawesome-free/css/all.min.css">
     <link rel="stylesheet" href="/adminlte/dist/css/adminlte.min.css">
 </head>
@@ -82,11 +86,12 @@ unset($_SESSION['import_data']);
     <div class="content-wrapper">
         <section class="content">
             <div class="container-fluid mt-4">
-                <div class="alert alert-success">
-                    <?= sprintf($lang['import_success'] ?? 'Import successful! %d records inserted.', $inserted) ?>
-                </div>
-                <a href="import.php" class="btn btn-primary"><?= $lang['import_another'] ?? 'Import Another File' ?></a>
-                <a href="index.php" class="btn btn-secondary"><?= $lang['back_dashboard'] ?? 'Back to Dashboard' ?></a>
+                <?php if (!empty($error)): ?>
+                    <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
+                <?php elseif (!empty($success)): ?>
+                    <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
+                    <a href="upload.php" class="btn btn-primary mt-2"><?= $lang['upload_another'] ?? 'Upload Another File' ?></a>
+                <?php endif; ?>
             </div>
         </section>
     </div>
