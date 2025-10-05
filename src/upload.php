@@ -2,6 +2,7 @@
 require_once __DIR__ . '/inc/db.php';
 require_once __DIR__ . '/inc/lang.php'; // optional for translations
 
+// Start session
 if (!isset($_SESSION)) session_start();
 
 // Check login
@@ -14,7 +15,7 @@ $userId = $_SESSION['user_id'];
 $error = '';
 $summary = null;
 
-// Safe timestamp finder (like in import_execute.php)
+// Utility function for timestamps
 function find_timestamp($rec) {
     if (!is_array($rec)) return null;
     $candidates = [
@@ -27,13 +28,6 @@ function find_timestamp($rec) {
             if ($t !== false) return date('Y-m-d H:i:s', $t);
         }
     }
-    $it = new RecursiveIteratorIterator(new RecursiveArrayIterator($rec));
-    foreach ($it as $v) {
-        if (is_string($v) && preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/', $v)) {
-            $t = strtotime($v);
-            if ($t !== false) return date('Y-m-d H:i:s', $t);
-        }
-    }
     return null;
 }
 
@@ -42,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
     if ($_FILES['ddd_file']['error'] === UPLOAD_ERR_OK) {
         $tmpPath = $_FILES['ddd_file']['tmp_name'];
 
-        // Run parser
+        // Run parser exactly like import_raw.php
         $cmd = escapeshellcmd("dddparser -card -input " . escapeshellarg($tmpPath) . " -format");
         $jsonOutput = shell_exec($cmd);
 
@@ -51,11 +45,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
             if ($data === null) {
                 $error = $lang['parser_invalid_json'] ?? 'Parser returned invalid JSON.';
             } else {
+                // Store parsed data in session for later confirmation/import
                 $_SESSION['import_data'] = $data;
 
-                // --- Summary ---
+                // Safe summary generation
                 $records = $data['card_event_data_1'] ?? [];
                 $recordCount = count($records);
+
                 $startTime = null;
                 $endTime = null;
 
