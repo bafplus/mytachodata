@@ -58,9 +58,7 @@ foreach ($activityRows as $row) {
     if ($selectedDate && $activityDate !== $selectedDate) continue;
 
     $segments = $raw['activity_change_info'];
-    if (count($segments) <= 1) continue;
-
-    $segments = array_slice($segments, 1);
+    if (count($segments) <= 0) continue; // include all segments
 
     $previousMinutes = 0;
     $currentType = null;
@@ -90,6 +88,7 @@ foreach ($activityRows as $row) {
         $previousMinutes = $endMinutes;
     }
 
+    // Add last segment
     $activities[] = [
         'date' => $activityDate,
         'start_time' => sprintf('%02d:%02d', intdiv($startMinutes, 60), $startMinutes % 60),
@@ -103,8 +102,8 @@ foreach ($activityRows as $row) {
 
 // Correct activity labels and colors
 $activityLabels = [
-    0 => 'Drive',
-    1 => 'Other Work',
+    0 => 'Other Work',
+    1 => 'Drive',
     2 => 'Rest',
     3 => 'Work'
 ];
@@ -213,7 +212,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const activityTypes = {0: [], 1: [], 2: [], 3: []};
     activitiesData.forEach(a => activityTypes[a.type].push({x: [a.start, a.end], y: ''}));
 
-    const activityLabels = {0: 'Drive', 1: 'Other Work', 2: 'Rest', 3: 'Work'};
+    const activityLabels = {0: 'Other Work', 1: 'Drive', 2: 'Rest', 3: 'Work'};
     const activityColors = {0: '#ff9800', 1: '#0000ff', 2: '#ff0000', 3: '#add8e6'};
 
     const datasets = [];
@@ -291,3 +290,4 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php endif; ?>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
+
