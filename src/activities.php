@@ -53,14 +53,13 @@ foreach ($activityRows as $row) {
     if (!$raw || !isset($raw['activity_change_info'])) continue;
 
     $activityDate = substr($raw['activity_record_date'], 0, 10);
-    $dates[$activityDate] = $activityDate; // collect available dates
+    $dates[$activityDate] = $activityDate;
 
     if ($selectedDate && $activityDate !== $selectedDate) continue;
 
     $segments = $raw['activity_change_info'];
     if (count($segments) <= 1) continue;
 
-    // Skip the first segment (index 0)
     $segments = array_slice($segments, 1);
 
     $previousMinutes = 0;
@@ -91,7 +90,6 @@ foreach ($activityRows as $row) {
         $previousMinutes = $endMinutes;
     }
 
-    // Push last segment
     $activities[] = [
         'date' => $activityDate,
         'start_time' => sprintf('%02d:%02d', intdiv($startMinutes, 60), $startMinutes % 60),
@@ -112,13 +110,12 @@ $activityLabels = [
 ];
 
 $activityColors = [
-    0 => '#ff0000',   // Rest = red
-    1 => '#add8e6',   // Work = light blue
-    2 => '#0000ff',   // Drive = blue
-    3 => '#add8e6'    // Other Work = light blue
+    0 => '#ff0000',
+    1 => '#add8e6',
+    2 => '#0000ff',
+    3 => '#add8e6'
 ];
 
-// Include layout
 require_once __DIR__ . '/inc/header.php';
 require_once __DIR__ . '/inc/sidebar.php';
 ?>
@@ -153,7 +150,7 @@ require_once __DIR__ . '/inc/sidebar.php';
             <div class="card card-info mb-4">
                 <div class="card-header">Timeline for <?= htmlspecialchars($selectedDate) ?></div>
                 <div class="card-body">
-                    <canvas id="activityTimeline" height="100"></canvas>
+                    <canvas id="activityTimeline" height="50"></canvas>
                 </div>
             </div>
             <?php endif; ?>
@@ -189,13 +186,11 @@ require_once __DIR__ . '/inc/sidebar.php';
     </div>
 </div>
 
-<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
 <?php if ($selectedDate && !empty($activities)): ?>
 <script>
 const activitiesData = <?php
-    // Merge consecutive segments in PHP
     $merged = [];
     $last = null;
     foreach ($activities as $act) {
@@ -217,18 +212,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const activityTypes = {0: [], 1: [], 2: [], 3: []};
     activitiesData.forEach(a => activityTypes[a.type].push({x: [a.start, a.end], y: ''}));
 
-    const activityLabels = {
-        0: 'Rest',
-        1: 'Work',
-        2: 'Drive',
-        3: 'Work'
-    };
-    const activityColors = {
-        0: '#ff0000',
-        1: '#add8e6',
-        2: '#0000ff',
-        3: '#add8e6'
-    };
+    const activityLabels = {0: 'Rest', 1: 'Work', 2: 'Drive', 3: 'Work'};
+    const activityColors = {0: '#ff0000', 1: '#add8e6', 2: '#0000ff', 3: '#add8e6'};
 
     const datasets = [];
     for (const [type, data] of Object.entries(activityTypes)) {
@@ -244,12 +229,37 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    function formatHHMM(minutes) {
+        const h = Math.floor(minutes / 60).toString().padStart(2,'0');
+        const m = (minutes % 60).toString().padStart(2,'0');
+        return `${h}:${m}`;
+    }
+
+    function formatDuration(minutes) {
+        const h = Math.floor(minutes / 60).toString().padStart(2,'0');
+        const m = (minutes % 60).toString().padStart(2,'0');
+        return `${h}:${m}`;
+    }
+
     new Chart(ctx, {
         type: 'bar',
         data: {labels: [''], datasets: datasets},
         options: {
             indexAxis: 'y',
-            plugins: { legend: { display: true } },
+            plugins: {
+                legend: { display: true },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const range = context.raw.x;
+                            const startTime = formatHHMM(range[0]);
+                            const endTime = formatHHMM(range[1]);
+                            const duration = formatDuration(range[1] - range[0]);
+                            return `${context.dataset.label}: ${startTime} → ${endTime} (${duration})`;
+                        }
+                    }
+                }
+            },
             responsive: true,
             scales: {
                 x: {
@@ -258,11 +268,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     title: { display: true, text: 'Time of Day' },
                     ticks: {
                         stepSize: 120,
-                        callback: function(value) {
-                            const h = Math.floor(value / 60);
-                            const m = value % 60;
-                            return h.toString().padStart(2,'0') + ':' + m.toString().padStart(2,'0');
-                        }
+                        callback: function(value) { return formatHHMM(value); }
                     }
                 },
                 y: { display: false }
@@ -274,4 +280,3 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php endif; ?>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
-
