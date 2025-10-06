@@ -131,8 +131,8 @@ require_once __DIR__ . '/inc/sidebar.php';
       <!-- Compact Calendar -->
       <div class="card card-primary mb-4">
         <div class="card-header">Activity Calendar</div>
-        <div class="card-body">
-          <div id="calendar"></div>
+        <div class="card-body p-2">
+          <div id="calendar" style="max-width: 500px; margin: auto;"></div>
         </div>
       </div>
 
@@ -173,7 +173,21 @@ require_once __DIR__ . '/inc/sidebar.php';
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
 
 <style>
-  /* Compact dot-style calendar */
+  /* Mini calendar styling */
+  #calendar {
+    font-size: 0.75rem;
+  }
+  .fc .fc-toolbar-title {
+    font-size: 1rem;
+  }
+  .fc .fc-daygrid-day-frame {
+    padding: 2px !important;
+    min-height: 50px !important;
+  }
+  .fc .fc-daygrid-day-number {
+    font-size: 0.7rem;
+    padding: 2px !important;
+  }
   .fc-daygrid-event-dot {
     display: none !important;
   }
@@ -185,8 +199,8 @@ require_once __DIR__ . '/inc/sidebar.php';
   }
   .fc-daygrid-event::after {
     content: "";
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
     background: green;
   }
@@ -198,8 +212,9 @@ document.addEventListener('DOMContentLoaded', function() {
     var calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'dayGridMonth',
         height: 'auto',
+        aspectRatio: 1.2,
         headerToolbar: {
-            left: 'prev,next today',
+            left: 'prev,next',
             center: 'title',
             right: ''
         },
