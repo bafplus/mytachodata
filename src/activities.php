@@ -186,7 +186,9 @@ require_once __DIR__ . '/inc/sidebar.php';
     </div>
 </div>
 
+<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.2.0/dist/chartjs-plugin-zoom.min.js"></script>
 
 <?php if ($selectedDate && !empty($activities)): ?>
 <script>
@@ -258,6 +260,19 @@ document.addEventListener('DOMContentLoaded', function() {
                             return `${context.dataset.label}: ${startTime} → ${endTime} (${duration})`;
                         }
                     }
+                },
+                zoom: {
+                    zoom: {
+                        wheel: { enabled: true },
+                        pinch: { enabled: true },
+                        mode: 'x'
+                    },
+                    pan: {
+                        enabled: true,
+                        mode: 'x',
+                        modifierKey: 'ctrl'
+                    },
+                    limits: { x: { min: 0, max: 1440 } }
                 }
             },
             responsive: true,
@@ -266,10 +281,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     min: 0,
                     max: 1440,
                     title: { display: true, text: 'Time of Day' },
-                    ticks: {
-                        stepSize: 120,
-                        callback: function(value) { return formatHHMM(value); }
-                    }
+                    ticks: { stepSize: 120, callback: function(value){ return formatHHMM(value); } }
                 },
                 y: { display: false }
             }
@@ -280,3 +292,4 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php endif; ?>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
+
