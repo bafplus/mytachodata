@@ -103,10 +103,10 @@ foreach ($activityRows as $row) {
 
 // Correct activity labels and colors
 $activityLabels = [
-    0 => 'Drive',
-    1 => 'Rest',
-    2 => 'Work',
-    3 => 'Other Work'
+    0 => 'Other Work',
+    1 => 'Drive',
+    2 => 'Rest',
+    3 => 'Work'
 ];
 
 $activityColors = [
@@ -171,10 +171,10 @@ require_once __DIR__ . '/inc/sidebar.php';
                     <tbody>
                         <?php foreach ($activities as $act): ?>
                             <tr>
-                                <td><?= htmlspecialchars($act['date']) ?></td>
+                                <td><?= date('d-m-Y', strtotime($act['date'])) ?></td>
                                 <td><?= htmlspecialchars($act['start_time']) ?></td>
                                 <td><?= htmlspecialchars($act['end_time']) ?></td>
-                                <td><?= htmlspecialchars($activityLabels[$act['activity_type']] ?? 'Unknown') ?></td>
+                                <td><?= htmlspecialchars($act['activity_type']) ?> - <?= htmlspecialchars($activityLabels[$act['activity_type']] ?? 'Unknown') ?></td>
                                 <td><?= htmlspecialchars($act['duration']) ?></td>
                             </tr>
                         <?php endforeach; ?>
@@ -213,7 +213,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const activityTypes = {0: [], 1: [], 2: [], 3: []};
     activitiesData.forEach(a => activityTypes[a.type].push({x: [a.start, a.end], y: ''}));
 
-    const activityLabels = {0: 'Drive', 1: 'Rest', 2: 'Work', 3: 'Other Work'};
+    const activityLabels = {0: 'Other Work', 1: 'Drive', 2: 'Rest', 3: 'Work'};
     const activityColors = {0: '#ff9800', 1: '#0000ff', 2: '#ff0000', 3: '#add8e6'};
 
     const datasets = [];
@@ -291,4 +291,3 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php endif; ?>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
-
