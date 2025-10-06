@@ -91,6 +91,7 @@ foreach ($activityRows as $row) {
         $previousMinutes = $endMinutes;
     }
 
+    // Push last segment
     $activities[] = [
         'date' => $activityDate,
         'start_time' => sprintf('%02d:%02d', intdiv($startMinutes, 60), $startMinutes % 60),
@@ -104,17 +105,17 @@ foreach ($activityRows as $row) {
 
 // Map work_type numbers to labels and colors
 $activityLabels = [
-    0 => 'Rest/Unknown',
-    1 => 'Available',
-    2 => 'Driving',
-    3 => 'Other Work'
+    0 => 'Rest',
+    1 => 'Work',
+    2 => 'Drive',
+    3 => 'Work'
 ];
 
 $activityColors = [
-    0 => '#9e9e9e', // gray
-    1 => '#2196f3', // blue
-    2 => '#4caf50', // green
-    3 => '#ff9800'  // orange
+    0 => '#ff0000',   // Rest = red
+    1 => '#add8e6',   // Work = light blue
+    2 => '#0000ff',   // Drive = blue
+    3 => '#add8e6'    // Other Work = light blue
 ];
 
 // Include layout
@@ -195,52 +196,68 @@ require_once __DIR__ . '/inc/sidebar.php';
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const ctx = document.getElementById('activityTimeline').getContext('2d');
-    const data = {
-      labels: [''],
-      datasets: [
-        <?php foreach ($activities as $act): ?>
-        {
-          label: '<?= $activityLabels[$act['activity_type']] ?? 'Unknown' ?>',
-          data: [{
-            x: [<?= $act['start_min'] ?>, <?= $act['end_min'] ?>],
-            y: ''
-          }],
-          borderSkipped: false,
-          borderWidth: 0,
-          backgroundColor: '<?= $activityColors[$act['activity_type']] ?? "#999" ?>',
-          barPercentage: 1.0,
-          categoryPercentage: 1.0
-        },
-        <?php endforeach; ?>
-      ]
-    };
+
+    // Merge consecutive segments of the same type
+    const mergedActivities = [];
+    let last = null;
+    <?php foreach ($activities as $act): ?>
+        const seg = {type: <?= $act['activity_type'] ?>, start: <?= $act['start_min'] ?>, end: <?= $act['end_min'] ?>};
+        if (last && last.type === seg.type && last.end === seg.start) {
+            last.end = seg.end;
+        } else {
+            if (last) mergedActivities.push(last);
+            last = {...seg};
+        }
+    <?php endforeach; ?>
+    if (last) mergedActivities.push(last);
+
+    // Prepare datasets per activity type
+    const activityTypes = {0: [], 1: [], 2: [], 3: []};
+    mergedActivities.forEach(a => activityTypes[a.type].push({x: [a.start, a.end], y: ''}));
+
+    const labels = <?php echo json_encode($activityLabels); ?>;
+    const colors = <?php echo json_encode($activityColors); ?>;
+    const datasets = [];
+    for (const [type, data] of Object.entries(activityTypes)) {
+        if (data.length > 0) {
+            datasets.push({
+                label: labels[type] || 'Unknown',
+                data: data,
+                backgroundColor: colors[type] || '#999',
+                borderSkipped: false,
+                barPercentage: 1.0,
+                categoryPercentage: 1.0
+            });
+        }
+    }
 
     new Chart(ctx, {
-      type: 'bar',
-      data: data,
-      options: {
-        indexAxis: 'y',
-        plugins: { legend: { display: false } },
-        scales: {
-          x: {
-            min: 0,
-            max: 1440,
-            title: { display: true, text: 'Time of Day' },
-            ticks: {
-              stepSize: 120,
-              callback: function(value) {
-                const h = Math.floor(value / 60);
-                return h.toString().padStart(2,'0') + ':00';
-              }
+        type: 'bar',
+        data: {labels: [''], datasets: datasets},
+        options: {
+            indexAxis: 'y',
+            plugins: { legend: { display: true } },
+            responsive: true,
+            scales: {
+                x: {
+                    min: 0,
+                    max: 1440,
+                    title: { display: true, text: 'Time of Day' },
+                    ticks: {
+                        stepSize: 120,
+                        callback: function(value) {
+                            const h = Math.floor(value / 60);
+                            const m = value % 60;
+                            return h.toString().padStart(2,'0') + ':' + m.toString().padStart(2,'0');
+                        }
+                    }
+                },
+                y: { display: false }
             }
-          },
-          y: { display: false }
         }
-      }
     });
 });
 </script>
 <?php endif; ?>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
-
