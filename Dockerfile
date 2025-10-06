@@ -9,7 +9,8 @@ RUN apt-get update && apt-get install -y python3 python3-pip git unzip && \
     pip3 install --user lxml requests && \
     rm -rf /var/lib/apt/lists/*
 
-RUN git clone https://github.com/traconiq/tachoparser.git tachoparser
+# RUN git clone https://github.com/traconiq/tachoparser.git tachoparser
+RUN git clone https://github.com/bafplus/tachoparser.git tachoparser
 
 WORKDIR /build/tachoparser/scripts
 RUN cd pks1 && python3 dl_all_pks1.py && cd .. && \
