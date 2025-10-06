@@ -105,7 +105,7 @@ foreach ($activityRows as $row) {
 $activityLabels = [
     0 => 'Drive',
     1 => 'Rest',
-    2 => 'Work'
+    2 => 'Work',
     3 => 'Other Work'
 ];
 
