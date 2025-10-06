@@ -1,7 +1,7 @@
 <?php
-require_once __DIR__ . '/inc/db.php';
+require_once __DIR__ . '/inc/db.php'; // main DB connection
 
-// Start session
+// Start session and check login
 if (!isset($_SESSION)) session_start();
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
@@ -21,7 +21,7 @@ $pdoOptions = [
     PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
 ];
 
-// Connect to DB
+// Connect to per-user DB
 try {
     $userPdo = new PDO(
         "mysql:host={$dbHost};dbname={$userDbName};charset=utf8mb4",
@@ -30,83 +30,80 @@ try {
         $pdoOptions
     );
 } catch (PDOException $e) {
-    die("Could not connect: " . htmlspecialchars($e->getMessage()));
+    die("Could not connect to user database: " . htmlspecialchars($e->getMessage()));
 }
 
 // Handle selected date
 $selectedDate = $_GET['date'] ?? null;
 
-// Fetch activity days for calendar
-$dates = [];
+// Fetch all activity rows
+$activityRows = [];
 try {
-    $stmt = $userPdo->query("SELECT DISTINCT DATE(JSON_UNQUOTE(JSON_EXTRACT(raw,'$.activity_record_date'))) as day 
-                             FROM card_driver_activity_1 
-                             ORDER BY day DESC");
-    while ($row = $stmt->fetch()) {
-        if (!empty($row['day'])) {
-            $dates[] = $row['day'];
-        }
-    }
-} catch (PDOException $e) {
-    // ignore
-}
-
-// Fetch activities (same logic as before)
-$activities = [];
-try {
-    $stmt = $userPdo->query("SELECT raw FROM card_driver_activity_1 ORDER BY timestamp DESC");
+    $stmt = $userPdo->query("SELECT raw, timestamp FROM card_driver_activity_1 ORDER BY timestamp DESC");
     $activityRows = $stmt->fetchAll();
-
-    foreach ($activityRows as $row) {
-        $raw = json_decode($row['raw'], true);
-        if (!$raw || !isset($raw['activity_change_info'])) continue;
-
-        $activityDate = substr($raw['activity_record_date'], 0, 10);
-        if ($selectedDate && $activityDate !== $selectedDate) continue;
-
-        $segments = $raw['activity_change_info'];
-        if (count($segments) <= 1) continue;
-
-        $segments = array_slice($segments, 1); // skip index 0
-
-        $previousMinutes = 0;
-        $currentType = null;
-        $startMinutes = 0;
-
-        foreach ($segments as $segment) {
-            $type = $segment['work_type'];
-            $endMinutes = $segment['minutes'];
-
-            if ($currentType === null) {
-                $currentType = $type;
-                $startMinutes = $previousMinutes;
-            } elseif ($type !== $currentType) {
-                $activities[] = [
-                    'date' => $activityDate,
-                    'start_time' => sprintf('%02d:%02d', intdiv($startMinutes, 60), $startMinutes % 60),
-                    'end_time' => sprintf('%02d:%02d', intdiv($previousMinutes, 60), $previousMinutes % 60),
-                    'activity_type' => $currentType,
-                    'duration' => $previousMinutes - $startMinutes
-                ];
-                $currentType = $type;
-                $startMinutes = $previousMinutes;
-            }
-
-            $previousMinutes = $endMinutes;
-        }
-
-        $activities[] = [
-            'date' => $activityDate,
-            'start_time' => sprintf('%02d:%02d', intdiv($startMinutes, 60), $startMinutes % 60),
-            'end_time' => sprintf('%02d:%02d', intdiv($previousMinutes, 60), $previousMinutes % 60),
-            'activity_type' => $currentType,
-            'duration' => $previousMinutes - $startMinutes
-        ];
-    }
 } catch (PDOException $e) {
-    // ignore
+    die("Error fetching activities: " . htmlspecialchars($e->getMessage()));
 }
 
+// Flatten all activity segments
+$activities = [];
+$dates = [];
+foreach ($activityRows as $row) {
+    $raw = json_decode($row['raw'], true);
+    if (!$raw || !isset($raw['activity_change_info'])) continue;
+
+    $activityDate = substr($raw['activity_record_date'], 0, 10);
+    $dates[$activityDate] = $activityDate; // collect available dates
+
+    if ($selectedDate && $activityDate !== $selectedDate) continue;
+
+    $segments = $raw['activity_change_info'];
+    if (count($segments) <= 1) continue;
+
+    // Skip the first segment (index 0)
+    $segments = array_slice($segments, 1);
+
+    $previousMinutes = 0;
+    $currentType = null;
+    $startMinutes = 0;
+
+    foreach ($segments as $segment) {
+        $type = $segment['work_type'];
+        $endMinutes = $segment['minutes'];
+
+        if ($currentType === null) {
+            // First segment after slice
+            $currentType = $type;
+            $startMinutes = $previousMinutes;
+        } elseif ($type !== $currentType) {
+            // Save previous block
+            $activities[] = [
+                'date' => $activityDate,
+                'start_time' => sprintf('%02d:%02d', intdiv($startMinutes, 60), $startMinutes % 60),
+                'end_time' => sprintf('%02d:%02d', intdiv($previousMinutes, 60), $previousMinutes % 60),
+                'activity_type' => $currentType,
+                'duration' => $previousMinutes - $startMinutes
+            ];
+
+            // Start new block
+            $currentType = $type;
+            $startMinutes = $previousMinutes;
+        }
+
+        $previousMinutes = $endMinutes;
+    }
+
+    // Add last segment
+    $activities[] = [
+        'date' => $activityDate,
+        'start_time' => sprintf('%02d:%02d', intdiv($startMinutes, 60), $startMinutes % 60),
+        'end_time' => sprintf('%02d:%02d', intdiv($previousMinutes, 60), $previousMinutes % 60),
+        'activity_type' => $currentType,
+        'duration' => $previousMinutes - $startMinutes
+    ];
+}
+
+// Map work_type numbers to labels
 $activityLabels = [
     0 => 'Rest/Unknown',
     1 => 'Available',
@@ -114,149 +111,65 @@ $activityLabels = [
     3 => 'Other Work'
 ];
 
+// Include layout
 require_once __DIR__ . '/inc/header.php';
 require_once __DIR__ . '/inc/sidebar.php';
 ?>
 
 <div class="content-wrapper">
-  <div class="content-header">
-    <div class="container-fluid">
-      <h1 class="m-0">Driver Activities</h1>
-    </div>
-  </div>
-
-  <div class="content">
-    <div class="container-fluid">
-
-      <!-- Compact Calendar -->
-      <div class="card card-primary mb-4">
-        <div class="card-header">Activity Calendar</div>
-        <div class="card-body p-2">
-          <div id="calendar" style="max-width: 500px; margin: auto;"></div>
+    <div class="content-header">
+        <div class="container-fluid">
+            <h1 class="m-0">Driver Activities</h1>
         </div>
-      </div>
-
-      <!-- Activities Table -->
-      <?php if (empty($activities)): ?>
-          <div class="alert alert-info">No activities found.</div>
-      <?php else: ?>
-          <table class="table table-bordered table-striped">
-              <thead>
-                  <tr>
-                      <th>Date</th>
-                      <th>Start</th>
-                      <th>End</th>
-                      <th>Activity Type</th>
-                      <th>Duration (min)</th>
-                  </tr>
-              </thead>
-              <tbody>
-                  <?php foreach ($activities as $act): ?>
-                      <tr>
-                          <td><?= htmlspecialchars($act['date']) ?></td>
-                          <td><?= htmlspecialchars($act['start_time']) ?></td>
-                          <td><?= htmlspecialchars($act['end_time']) ?></td>
-                          <td><?= htmlspecialchars($activityLabels[$act['activity_type']] ?? 'Unknown') ?></td>
-                          <td><?= htmlspecialchars($act['duration']) ?></td>
-                      </tr>
-                  <?php endforeach; ?>
-              </tbody>
-          </table>
-      <?php endif; ?>
-
     </div>
-  </div>
+
+    <div class="content">
+        <div class="container-fluid">
+
+            <!-- Day selector -->
+            <?php if (!empty($dates)): ?>
+                <form method="get" class="mb-3">
+                    <label for="date">Select Day:</label>
+                    <select name="date" id="date" onchange="this.form.submit()">
+                        <option value="">-- All Days --</option>
+                        <?php foreach ($dates as $dateOption): ?>
+                            <option value="<?= htmlspecialchars($dateOption) ?>" <?= $selectedDate === $dateOption ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($dateOption) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </form>
+            <?php endif; ?>
+
+            <?php if (empty($activities)): ?>
+                <div class="alert alert-info">No activities found.</div>
+            <?php else: ?>
+                <table class="table table-bordered table-striped">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Start</th>
+                            <th>End</th>
+                            <th>Activity Type</th>
+                            <th>Duration (min)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($activities as $act): ?>
+                            <tr>
+                                <td><?= htmlspecialchars($act['date']) ?></td>
+                                <td><?= htmlspecialchars($act['start_time']) ?></td>
+                                <td><?= htmlspecialchars($act['end_time']) ?></td>
+                                <td><?= htmlspecialchars($activityLabels[$act['activity_type']] ?? 'Unknown') ?></td>
+                                <td><?= htmlspecialchars($act['duration']) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php endif; ?>
+
+        </div>
+    </div>
 </div>
 
-<!-- FullCalendar -->
-<link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css" rel="stylesheet"/>
-<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
-
-<style>
-  /* Mini calendar styling */
-  #calendar {
-    font-size: 0.75rem;
-  }
-  .fc .fc-toolbar-title {
-    font-size: 1rem;
-  }
-  .fc .fc-daygrid-day-frame {
-    padding: 2px !important;
-    min-height: 50px !important;
-  }
-  .fc .fc-daygrid-day-number {
-    font-size: 0.7rem;
-    padding: 2px !important;
-  }
-  .fc-daygrid-event-dot {
-    display: none !important;
-  }
-  .fc-daygrid-event {
-    display: flex !important;
-    justify-content: center;
-    align-items: center;
-    background: none !important;
-  }
-  .fc-daygrid-event::after {
-    content: "";
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: green;
-  }
-
-  /* Highlight today's cell */
-  .fc .fc-day-today {
-    background-color: rgba(0, 123, 255, 0.1) !important;
-    border: 1px solid rgba(0, 123, 255, 0.3);
-  }
-
-  /* Highlight selected date */
-  .fc-day-selected {
-    background-color: rgba(0, 200, 0, 0.15) !important;
-  }
-</style>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    var selectedDate = "<?= $selectedDate ?? '' ?>";
-    var calendarEl = document.getElementById('calendar');
-
-    // Use selected date as the initial date if available, else today
-    var calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'dayGridMonth',
-        initialDate: selectedDate || new Date().toISOString().slice(0,10),
-        height: 'auto',
-        aspectRatio: 1.2,
-        headerToolbar: {
-            left: 'prev,next',
-            center: 'title',
-            right: ''
-        },
-        dateClick: function(info) {
-            window.location.href = '?date=' + info.dateStr;
-        },
-        events: [
-            <?php foreach ($dates as $date): ?>
-            {
-                start: '<?= $date ?>'
-            },
-            <?php endforeach; ?>
-        ],
-        eventContent: function() {
-            return { html: '<div style="width:6px;height:6px;background:green;border-radius:50%;margin:auto;"></div>' };
-        }
-    });
-
-    calendar.render();
-
-    // Highlight selected date after render
-    if (selectedDate) {
-        const cell = calendarEl.querySelector('[data-date="' + selectedDate + '"]');
-        if (cell) cell.classList.add('fc-day-selected');
-    }
-});
-</script>
-
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
-
