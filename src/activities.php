@@ -101,19 +101,19 @@ foreach ($activityRows as $row) {
     ];
 }
 
-// Map work_type numbers to labels and colors
+// Correct activity labels and colors
 $activityLabels = [
-    0 => 'Rest',
-    1 => 'Work',
-    2 => 'Drive',
+    0 => 'Other Work',
+    1 => 'Drive',
+    2 => 'Rest',
     3 => 'Work'
 ];
 
 $activityColors = [
-    0 => '#ff0000',
-    1 => '#add8e6',
-    2 => '#0000ff',
-    3 => '#add8e6'
+    0 => '#ff9800',  // orange
+    1 => '#0000ff',  // blue
+    2 => '#ff0000',  // red
+    3 => '#add8e6'   // light blue
 ];
 
 require_once __DIR__ . '/inc/header.php';
@@ -186,7 +186,6 @@ require_once __DIR__ . '/inc/sidebar.php';
     </div>
 </div>
 
-<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.2.0/dist/chartjs-plugin-zoom.min.js"></script>
 
@@ -214,8 +213,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const activityTypes = {0: [], 1: [], 2: [], 3: []};
     activitiesData.forEach(a => activityTypes[a.type].push({x: [a.start, a.end], y: ''}));
 
-    const activityLabels = {0: 'Rest', 1: 'Work', 2: 'Drive', 3: 'Work'};
-    const activityColors = {0: '#ff0000', 1: '#add8e6', 2: '#0000ff', 3: '#add8e6'};
+    const activityLabels = {0: 'Other Work', 1: 'Drive', 2: 'Rest', 3: 'Work'};
+    const activityColors = {0: '#ff9800', 1: '#0000ff', 2: '#ff0000', 3: '#add8e6'};
 
     const datasets = [];
     for (const [type, data] of Object.entries(activityTypes)) {
