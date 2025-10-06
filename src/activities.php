@@ -102,10 +102,10 @@ foreach ($activityRows as $row) {
 
 // Correct activity labels and colors
 $activityLabels = [
-    0 => 'Other Work',
-    1 => 'Drive',
-    2 => 'Rest',
-    3 => 'Work'
+    0 => 'Rest',
+    1 => 'Availability',
+    2 => 'Work',
+    3 => 'Drive'
 ];
 
 $activityColors = [
