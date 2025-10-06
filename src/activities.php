@@ -163,6 +163,7 @@ require_once __DIR__ . '/inc/sidebar.php';
                             <th>Date</th>
                             <th>Start</th>
                             <th>End</th>
+                            <th>DB Value</th>
                             <th>Activity Type</th>
                             <th>Duration (min)</th>
                         </tr>
@@ -173,7 +174,8 @@ require_once __DIR__ . '/inc/sidebar.php';
                                 <td><?= date('d-m-Y', strtotime($act['date'])) ?></td>
                                 <td><?= htmlspecialchars($act['start_time']) ?></td>
                                 <td><?= htmlspecialchars($act['end_time']) ?></td>
-                                <td><?= htmlspecialchars($act['activity_type']) ?> - <?= htmlspecialchars($activityLabels[$act['activity_type']] ?? 'Unknown') ?></td>
+                                <td><?= htmlspecialchars($act['activity_type']) ?></td>
+                                <td><?= htmlspecialchars($activityLabels[$act['activity_type']] ?? 'Unknown') ?></td>
                                 <td><?= htmlspecialchars($act['duration']) ?></td>
                             </tr>
                         <?php endforeach; ?>
@@ -290,4 +292,3 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php endif; ?>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
-
