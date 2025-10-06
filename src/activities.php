@@ -204,13 +204,28 @@ require_once __DIR__ . '/inc/sidebar.php';
     border-radius: 50%;
     background: green;
   }
+
+  /* Highlight today's cell */
+  .fc .fc-day-today {
+    background-color: rgba(0, 123, 255, 0.1) !important;
+    border: 1px solid rgba(0, 123, 255, 0.3);
+  }
+
+  /* Highlight selected date */
+  .fc-day-selected {
+    background-color: rgba(0, 200, 0, 0.15) !important;
+  }
 </style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    var selectedDate = "<?= $selectedDate ?? '' ?>";
     var calendarEl = document.getElementById('calendar');
+
+    // Use selected date as the initial date if available, else today
     var calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'dayGridMonth',
+        initialDate: selectedDate || new Date().toISOString().slice(0,10),
         height: 'auto',
         aspectRatio: 1.2,
         headerToolbar: {
@@ -218,17 +233,30 @@ document.addEventListener('DOMContentLoaded', function() {
             center: 'title',
             right: ''
         },
+        dateClick: function(info) {
+            window.location.href = '?date=' + info.dateStr;
+        },
         events: [
             <?php foreach ($dates as $date): ?>
             {
-                start: '<?= $date ?>',
-                url: '?date=<?= $date ?>'
+                start: '<?= $date ?>'
             },
             <?php endforeach; ?>
-        ]
+        ],
+        eventContent: function() {
+            return { html: '<div style="width:6px;height:6px;background:green;border-radius:50%;margin:auto;"></div>' };
+        }
     });
+
     calendar.render();
+
+    // Highlight selected date after render
+    if (selectedDate) {
+        const cell = calendarEl.querySelector('[data-date="' + selectedDate + '"]');
+        if (cell) cell.classList.add('fc-day-selected');
+    }
 });
 </script>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
+
