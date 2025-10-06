@@ -194,36 +194,49 @@ require_once __DIR__ . '/inc/sidebar.php';
 
 <?php if ($selectedDate && !empty($activities)): ?>
 <script>
+const activitiesData = <?php
+    // Merge consecutive segments in PHP
+    $merged = [];
+    $last = null;
+    foreach ($activities as $act) {
+        $seg = ['type' => $act['activity_type'], 'start' => $act['start_min'], 'end' => $act['end_min']];
+        if ($last && $last['type'] === $seg['type'] && $last['end'] === $seg['start']) {
+            $last['end'] = $seg['end'];
+        } else {
+            if ($last) $merged[] = $last;
+            $last = $seg;
+        }
+    }
+    if ($last) $merged[] = $last;
+    echo json_encode($merged);
+?>;
+
 document.addEventListener('DOMContentLoaded', function() {
     const ctx = document.getElementById('activityTimeline').getContext('2d');
 
-    // Merge consecutive segments of the same type
-    const mergedActivities = [];
-    let last = null;
-    <?php foreach ($activities as $act): ?>
-        const seg = {type: <?= $act['activity_type'] ?>, start: <?= $act['start_min'] ?>, end: <?= $act['end_min'] ?>};
-        if (last && last.type === seg.type && last.end === seg.start) {
-            last.end = seg.end;
-        } else {
-            if (last) mergedActivities.push(last);
-            last = {...seg};
-        }
-    <?php endforeach; ?>
-    if (last) mergedActivities.push(last);
-
-    // Prepare datasets per activity type
     const activityTypes = {0: [], 1: [], 2: [], 3: []};
-    mergedActivities.forEach(a => activityTypes[a.type].push({x: [a.start, a.end], y: ''}));
+    activitiesData.forEach(a => activityTypes[a.type].push({x: [a.start, a.end], y: ''}));
 
-    const labels = <?php echo json_encode($activityLabels); ?>;
-    const colors = <?php echo json_encode($activityColors); ?>;
+    const activityLabels = {
+        0: 'Rest',
+        1: 'Work',
+        2: 'Drive',
+        3: 'Work'
+    };
+    const activityColors = {
+        0: '#ff0000',
+        1: '#add8e6',
+        2: '#0000ff',
+        3: '#add8e6'
+    };
+
     const datasets = [];
     for (const [type, data] of Object.entries(activityTypes)) {
         if (data.length > 0) {
             datasets.push({
-                label: labels[type] || 'Unknown',
+                label: activityLabels[type] || 'Unknown',
                 data: data,
-                backgroundColor: colors[type] || '#999',
+                backgroundColor: activityColors[type] || '#999',
                 borderSkipped: false,
                 barPercentage: 1.0,
                 categoryPercentage: 1.0
@@ -261,3 +274,4 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php endif; ?>
 
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
+
