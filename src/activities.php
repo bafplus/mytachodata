@@ -103,10 +103,10 @@ foreach ($activityRows as $row) {
 
 // Correct activity labels and colors
 $activityLabels = [
-    0 => 'Other Work',
-    1 => 'Drive',
-    2 => 'Rest',
-    3 => 'Work'
+    0 => 'Drive',
+    1 => 'Rest',
+    2 => 'Work'
+    3 => 'Other Work'
 ];
 
 $activityColors = [
@@ -213,7 +213,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const activityTypes = {0: [], 1: [], 2: [], 3: []};
     activitiesData.forEach(a => activityTypes[a.type].push({x: [a.start, a.end], y: ''}));
 
-    const activityLabels = {0: 'Other Work', 1: 'Drive', 2: 'Rest', 3: 'Work'};
+    const activityLabels = {0: 'Drive', 1: 'Rest', 2: 'Work', 3: 'Other Work'};
     const activityColors = {0: '#ff9800', 1: '#0000ff', 2: '#ff0000', 3: '#add8e6'};
 
     const datasets = [];
