@@ -72,20 +72,18 @@ foreach ($activityRows as $row) {
         $endMinutes = $segment['minutes'];
 
         if ($currentType === null) {
-            // First segment after slice
             $currentType = $type;
             $startMinutes = $previousMinutes;
         } elseif ($type !== $currentType) {
-            // Save previous block
             $activities[] = [
                 'date' => $activityDate,
                 'start_time' => sprintf('%02d:%02d', intdiv($startMinutes, 60), $startMinutes % 60),
                 'end_time' => sprintf('%02d:%02d', intdiv($previousMinutes, 60), $previousMinutes % 60),
                 'activity_type' => $currentType,
-                'duration' => $previousMinutes - $startMinutes
+                'duration' => $previousMinutes - $startMinutes,
+                'start_min' => $startMinutes,
+                'end_min' => $previousMinutes
             ];
-
-            // Start new block
             $currentType = $type;
             $startMinutes = $previousMinutes;
         }
@@ -93,22 +91,30 @@ foreach ($activityRows as $row) {
         $previousMinutes = $endMinutes;
     }
 
-    // Add last segment
     $activities[] = [
         'date' => $activityDate,
         'start_time' => sprintf('%02d:%02d', intdiv($startMinutes, 60), $startMinutes % 60),
         'end_time' => sprintf('%02d:%02d', intdiv($previousMinutes, 60), $previousMinutes % 60),
         'activity_type' => $currentType,
-        'duration' => $previousMinutes - $startMinutes
+        'duration' => $previousMinutes - $startMinutes,
+        'start_min' => $startMinutes,
+        'end_min' => $previousMinutes
     ];
 }
 
-// Map work_type numbers to labels
+// Map work_type numbers to labels and colors
 $activityLabels = [
     0 => 'Rest/Unknown',
     1 => 'Available',
     2 => 'Driving',
     3 => 'Other Work'
+];
+
+$activityColors = [
+    0 => '#9e9e9e', // gray
+    1 => '#2196f3', // blue
+    2 => '#4caf50', // green
+    3 => '#ff9800'  // orange
 ];
 
 // Include layout
@@ -139,6 +145,16 @@ require_once __DIR__ . '/inc/sidebar.php';
                         <?php endforeach; ?>
                     </select>
                 </form>
+            <?php endif; ?>
+
+            <!-- Timeline Graph -->
+            <?php if ($selectedDate && !empty($activities)): ?>
+            <div class="card card-info mb-4">
+                <div class="card-header">Timeline for <?= htmlspecialchars($selectedDate) ?></div>
+                <div class="card-body">
+                    <canvas id="activityTimeline" height="100"></canvas>
+                </div>
+            </div>
             <?php endif; ?>
 
             <?php if (empty($activities)): ?>
@@ -172,4 +188,59 @@ require_once __DIR__ . '/inc/sidebar.php';
     </div>
 </div>
 
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<?php if ($selectedDate && !empty($activities)): ?>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('activityTimeline').getContext('2d');
+    const data = {
+      labels: [''],
+      datasets: [
+        <?php foreach ($activities as $act): ?>
+        {
+          label: '<?= $activityLabels[$act['activity_type']] ?? 'Unknown' ?>',
+          data: [{
+            x: [<?= $act['start_min'] ?>, <?= $act['end_min'] ?>],
+            y: ''
+          }],
+          borderSkipped: false,
+          borderWidth: 0,
+          backgroundColor: '<?= $activityColors[$act['activity_type']] ?? "#999" ?>',
+          barPercentage: 1.0,
+          categoryPercentage: 1.0
+        },
+        <?php endforeach; ?>
+      ]
+    };
+
+    new Chart(ctx, {
+      type: 'bar',
+      data: data,
+      options: {
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: {
+          x: {
+            min: 0,
+            max: 1440,
+            title: { display: true, text: 'Time of Day' },
+            ticks: {
+              stepSize: 120,
+              callback: function(value) {
+                const h = Math.floor(value / 60);
+                return h.toString().padStart(2,'0') + ':00';
+              }
+            }
+          },
+          y: { display: false }
+        }
+      }
+    });
+});
+</script>
+<?php endif; ?>
+
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
+
