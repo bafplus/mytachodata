@@ -60,4 +60,4 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: |
             ${{ secrets.DOCKER_HUB_USERNAME }}/bafplus:${{ env.NEW_TAG }}
-            ${{ secrets.DOCKER_HUB_USERNAME }}/bafplus:latest
+            ${{ secrets.DOCKER_HUB_USERNAME }}/mytachodata:latest
