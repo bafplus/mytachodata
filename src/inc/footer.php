@@ -1,9 +1,9 @@
 <!-- Main Footer -->
 <footer class="main-footer">
   <div class="float-right d-none d-sm-block">
-    <b>Version</b> 1.0
+    <b>Version</b> 1.0.4
   </div>
-  <strong>&copy; 2025 MyTacho</strong> All rights reserved.
+  <strong>&copy; <?=(date('Y')>2013?' '.date('Y'):'')?> - MyTachoData.Com</strong> Your Card, Your Data!
 </footer>
 </div>
 <!-- ./wrapper -->
@@ -39,3 +39,4 @@ $(function() {
 </script>
 </body>
 </html>
+
