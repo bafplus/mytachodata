@@ -1,0 +1,2 @@
+# Ignore AdminLTE folder (downloaded at container start)
+adminlte/
