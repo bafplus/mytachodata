@@ -1,7 +1,7 @@
 <!-- Main Footer -->
 <footer class="main-footer">
   <div class="float-right d-none d-sm-block">
-    <b>Version</b> 1.0.12
+    <b>Version</b> 1.0.13
   </div>
   <strong>&copy; <?=(date('Y')>2013?' '.date('Y'):'')?> - MyTachoData.Com</strong> Your Card, Your Data!
 </footer>

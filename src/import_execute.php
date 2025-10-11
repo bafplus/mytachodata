@@ -91,6 +91,56 @@ try {
     die(json_encode(['error' => "Failed connecting to user DB: " . $e->getMessage()]));
 }
 
+/* ---------------------------------------------------------
+   🧩 SINGLE DRIVER CHECK
+   --------------------------------------------------------- */
+$driverPath = $data['card_identification_and_driver_card_holder_identification_1']['driver_card_holder_identification']['card_holder_name'] ?? null;
+
+if (!$driverPath) {
+    die(json_encode(['error' => 'Could not extract driver name from uploaded file.']));
+}
+
+$firstName = trim($driverPath['holder_first_names'] ?? '');
+$lastName  = trim($driverPath['holder_surname'] ?? '');
+
+if (empty($firstName) || empty($lastName)) {
+    die(json_encode(['error' => 'Driver name incomplete in uploaded file.']));
+}
+
+$driverFullName = strtoupper($firstName . ' ' . $lastName);
+
+// Create driver_info table if not exists
+$userPdo->exec("
+    CREATE TABLE IF NOT EXISTS driver_info (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        first_name VARCHAR(255) NOT NULL,
+        last_name VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+");
+
+// Check existing driver
+$existingDriver = $userPdo->query("SELECT CONCAT(UPPER(first_name), ' ', UPPER(last_name)) AS full_name FROM driver_info LIMIT 1")->fetchColumn();
+
+if (!$existingDriver) {
+    $stmt = $userPdo->prepare("INSERT INTO driver_info (first_name, last_name) VALUES (?, ?)");
+    $stmt->execute([$firstName, $lastName]);
+} elseif ($existingDriver !== $driverFullName) {
+    if ($isAjax) {
+        die(json_encode(['error' => "Upload rejected. Existing data belongs to another driver ($existingDriver), not $driverFullName."]));
+    } else {
+        echo "<h3 style='color:red;'>Upload rejected</h3>";
+        echo "<p>Existing data belongs to another driver: <strong>$existingDriver</strong></p>";
+        echo "<p>Uploaded file belongs to: <strong>$driverFullName</strong></p>";
+        echo "<a href='upload.php' class='btn btn-primary'>Back to Upload</a>";
+        exit;
+    }
+}
+
+/* ---------------------------------------------------------
+   END SINGLE DRIVER CHECK
+   --------------------------------------------------------- */
+
 // --- Import ---
 $summary = [];
 
@@ -200,4 +250,3 @@ if ($isAjax) {
 <script src="/adminlte/dist/js/adminlte.min.js"></script>
 </body>
 </html>
-
