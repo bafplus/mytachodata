@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/inc/db.php';
-require_once __DIR__ . '/inc/lang.php'; // optional for translations
+require_once __DIR__ . '/inc/lang.php';
 
 // Start session
 if (!isset($_SESSION)) session_start();
@@ -15,12 +15,34 @@ $userId = $_SESSION['user_id'];
 $error = '';
 $summary = null;
 
+// --- Check current driver info ---
+$dbHost = getenv('DB_HOST') ?: '127.0.0.1';
+$dbUser = getenv('DB_USER') ?: 'mytacho_user';
+$dbPass = getenv('DB_PASS') ?: 'mytacho_pass';
+$userDbName = "mytacho_user_" . intval($userId);
+$currentDriver = null;
+
+try {
+    $userPdo = new PDO("mysql:host={$dbHost};dbname={$userDbName};charset=utf8mb4", $dbUser, $dbPass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+    ]);
+    // Fetch driver name if exists
+    $stmt = $userPdo->query("SELECT first_name, last_name FROM driver_info LIMIT 1");
+    $driver = $stmt->fetch();
+    if ($driver) {
+        $currentDriver = strtoupper($driver['first_name'] . ' ' . $driver['last_name']);
+    }
+} catch (PDOException $e) {
+    // Ignore — table may not exist yet
+}
+
 // Handle file upload via standard POST (fallback for non-JS)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
     if ($_FILES['ddd_file']['error'] === UPLOAD_ERR_OK) {
         $tmpPath = $_FILES['ddd_file']['tmp_name'];
 
-        // Run parser exactly like import_raw.php
+        // Run parser
         $cmd = escapeshellcmd("dddparser -card -input " . escapeshellarg($tmpPath) . " -format");
         $jsonOutput = shell_exec($cmd);
 
@@ -72,6 +94,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
                     <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
                 <?php endif; ?>
 
+                <!-- Current driver info -->
+                <?php if ($currentDriver): ?>
+                    <div class="alert alert-info">
+                        <i class="fas fa-id-card"></i>
+                        This account is currently linked to driver:
+                        <strong><?= htmlspecialchars($currentDriver) ?></strong>
+                    </div>
+                <?php else: ?>
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        No driver data imported yet. The next upload will set the driver for this account.
+                    </div>
+                <?php endif; ?>
+
                 <div class="card card-primary">
                     <div class="card-header">
                         <h3 class="card-title"><?= $lang['upload_title'] ?? 'Upload DDD File' ?></h3>
@@ -104,7 +140,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['ddd_file'])) {
                                 </div>
                             </div>
                         <?php endif; ?>
-
                     </div>
                 </div>
             </div>
@@ -134,6 +169,16 @@ $(document).ready(function() {
         $('#uploadProgressBar').css('width','0%').text('0%');
         $('#importResult').html('');
 
+        // Fake progress
+        let progress = 0;
+        let fakeInterval = setInterval(() => {
+            if (progress < 90) { 
+                progress += Math.floor(Math.random() * 5) + 1;
+                if (progress > 90) progress = 90;
+                $('#uploadProgressBar').css('width', progress+'%').text(progress+'%');
+            }
+        }, 300);
+
         // AJAX upload to upload.php
         $.ajax({
             url: 'upload.php',
@@ -141,24 +186,18 @@ $(document).ready(function() {
             data: formData,
             processData: false,
             contentType: false,
-            xhr: function() {
-                let xhr = new window.XMLHttpRequest();
-                xhr.upload.addEventListener('progress', function(evt) {
-                    if (evt.lengthComputable) {
-                        let percent = Math.round((evt.loaded / evt.total) * 100);
-                        $('#uploadProgressBar').css('width', percent+'%').text(percent+'%');
-                    }
-                }, false);
-                return xhr;
-            },
             success: function(responseHtml) {
-                $('#uploadProgressBar').css('width','100%').text('Analyzing...');
-                // Trigger import_execute.php via AJAX
+                // After upload, trigger import_execute.php
                 $.ajax({
                     url: 'import_execute.php',
                     type: 'GET',
                     dataType: 'json',
                     success: function(data) {
+                        clearInterval(fakeInterval); // stop fake progress now
+                        $('#uploadProgressBar').animate({ width: '100%' }, 300, function() {
+                            $('#uploadProgressBar').text('Done');
+                        });
+
                         if (data.error) {
                             $('#importResult').html('<div class="alert alert-danger">'+data.error+'</div>');
                         } else {
@@ -169,14 +208,17 @@ $(document).ready(function() {
                             html += '</ul></div>';
                             $('#importResult').html(html);
                         }
-                        $('#uploadProgressBar').css('width','100%').text('Done');
                     },
                     error: function(xhr, status, err) {
+                        clearInterval(fakeInterval);
+                        $('#uploadProgressBar').css('width','0%').text('0%');
                         $('#importResult').html('<div class="alert alert-danger">Import error: '+err+'</div>');
                     }
                 });
             },
             error: function(xhr, status, err) {
+                clearInterval(fakeInterval);
+                $('#uploadProgressBar').css('width','0%').text('0%');
                 $('#importResult').html('<div class="alert alert-danger">Upload error: '+err+'</div>');
             }
         });

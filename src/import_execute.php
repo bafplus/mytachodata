@@ -97,6 +97,7 @@ try {
 $driverPath = $data['card_identification_and_driver_card_holder_identification_1']['driver_card_holder_identification']['card_holder_name'] ?? null;
 
 if (!$driverPath) {
+    unset($_SESSION['import_data']);
     die(json_encode(['error' => 'Could not extract driver name from uploaded file.']));
 }
 
@@ -104,6 +105,7 @@ $firstName = trim($driverPath['holder_first_names'] ?? '');
 $lastName  = trim($driverPath['holder_surname'] ?? '');
 
 if (empty($firstName) || empty($lastName)) {
+    unset($_SESSION['import_data']);
     die(json_encode(['error' => 'Driver name incomplete in uploaded file.']));
 }
 
@@ -126,8 +128,12 @@ if (!$existingDriver) {
     $stmt = $userPdo->prepare("INSERT INTO driver_info (first_name, last_name) VALUES (?, ?)");
     $stmt->execute([$firstName, $lastName]);
 } elseif ($existingDriver !== $driverFullName) {
+    unset($_SESSION['import_data']); // 🧹 clear stale import data
+
+    $message = "Upload rejected. Existing data belongs to another driver ($existingDriver), not $driverFullName.";
+
     if ($isAjax) {
-        die(json_encode(['error' => "Upload rejected. Existing data belongs to another driver ($existingDriver), not $driverFullName."]));
+        die(json_encode(['error' => $message]));
     } else {
         echo "<h3 style='color:red;'>Upload rejected</h3>";
         echo "<p>Existing data belongs to another driver: <strong>$existingDriver</strong></p>";
