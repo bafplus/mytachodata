@@ -21,7 +21,10 @@ $pdoOptions = [
     PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
 ];
 
-// Connect to per-user DB
+// Connect to per-user DB safely
+$userPdo = null;
+$dbError = null;
+
 try {
     $userPdo = new PDO(
         "mysql:host={$dbHost};dbname={$userDbName};charset=utf8mb4",
@@ -30,7 +33,11 @@ try {
         $pdoOptions
     );
 } catch (PDOException $e) {
-    die("Could not connect to user database: " . htmlspecialchars($e->getMessage()));
+    if (str_contains($e->getMessage(), 'Unknown database')) {
+        $dbError = "No data uploaded yet. Please upload a driver card (.ddd file) to create your database.";
+    } else {
+        $dbError = "Database connection error: " . htmlspecialchars($e->getMessage());
+    }
 }
 
 // Handle selected date
@@ -38,69 +45,73 @@ $selectedDate = $_GET['date'] ?? null;
 
 // Fetch all activity rows
 $activityRows = [];
-try {
-    $stmt = $userPdo->query("SELECT raw, timestamp FROM card_driver_activity_1 ORDER BY timestamp DESC");
-    $activityRows = $stmt->fetchAll();
-} catch (PDOException $e) {
-    die("Error fetching activities: " . htmlspecialchars($e->getMessage()));
+if ($userPdo && !$dbError) {
+    try {
+        $stmt = $userPdo->query("SELECT raw, timestamp FROM card_driver_activity_1 ORDER BY timestamp DESC");
+        $activityRows = $stmt->fetchAll();
+    } catch (PDOException $e) {
+        $dbError = "Error fetching activities: " . htmlspecialchars($e->getMessage());
+    }
 }
 
 // Flatten all activity segments
 $activities = [];
 $dates = [];
-foreach ($activityRows as $row) {
-    $raw = json_decode($row['raw'], true);
-    if (!$raw || !isset($raw['activity_change_info'])) continue;
+if (!$dbError) {
+    foreach ($activityRows as $row) {
+        $raw = json_decode($row['raw'], true);
+        if (!$raw || !isset($raw['activity_change_info'])) continue;
 
-    $activityDate = substr($raw['activity_record_date'], 0, 10);
-    $dates[$activityDate] = $activityDate;
+        $activityDate = substr($raw['activity_record_date'], 0, 10);
+        $dates[$activityDate] = $activityDate;
 
-    if ($selectedDate && $activityDate !== $selectedDate) continue;
+        if ($selectedDate && $activityDate !== $selectedDate) continue;
 
-    $segments = $raw['activity_change_info'];
-    if (count($segments) <= 0) continue; // include all segments
+        $segments = $raw['activity_change_info'];
+        if (count($segments) <= 0) continue;
 
-    $previousMinutes = 0;
-    $currentType = null;
-    $startMinutes = 0;
+        $previousMinutes = 0;
+        $currentType = null;
+        $startMinutes = 0;
 
-    foreach ($segments as $segment) {
-        $type = $segment['work_type'];
-        $endMinutes = $segment['minutes'];
+        foreach ($segments as $segment) {
+            $type = $segment['work_type'];
+            $endMinutes = $segment['minutes'];
 
-        if ($currentType === null) {
-            $currentType = $type;
-            $startMinutes = $previousMinutes;
-        } elseif ($type !== $currentType) {
-            $activities[] = [
-                'date' => $activityDate,
-                'start_time' => sprintf('%02d:%02d', intdiv($startMinutes, 60), $startMinutes % 60),
-                'end_time' => sprintf('%02d:%02d', intdiv($previousMinutes, 60), $previousMinutes % 60),
-                'activity_type' => $currentType,
-                'duration' => $previousMinutes - $startMinutes,
-                'start_min' => $startMinutes,
-                'end_min' => $previousMinutes
-            ];
-            $currentType = $type;
-            $startMinutes = $previousMinutes;
+            if ($currentType === null) {
+                $currentType = $type;
+                $startMinutes = $previousMinutes;
+            } elseif ($type !== $currentType) {
+                $activities[] = [
+                    'date' => $activityDate,
+                    'start_time' => sprintf('%02d:%02d', intdiv($startMinutes, 60), $startMinutes % 60),
+                    'end_time' => sprintf('%02d:%02d', intdiv($previousMinutes, 60), $previousMinutes % 60),
+                    'activity_type' => $currentType,
+                    'duration' => $previousMinutes - $startMinutes,
+                    'start_min' => $startMinutes,
+                    'end_min' => $previousMinutes
+                ];
+                $currentType = $type;
+                $startMinutes = $previousMinutes;
+            }
+
+            $previousMinutes = $endMinutes;
         }
 
-        $previousMinutes = $endMinutes;
+        // Add last segment
+        $activities[] = [
+            'date' => $activityDate,
+            'start_time' => sprintf('%02d:%02d', intdiv($startMinutes, 60), $startMinutes % 60),
+            'end_time' => sprintf('%02d:%02d', intdiv($previousMinutes, 60), $previousMinutes % 60),
+            'activity_type' => $currentType,
+            'duration' => $previousMinutes - $startMinutes,
+            'start_min' => $startMinutes,
+            'end_min' => $previousMinutes
+        ];
     }
-
-    // Add last segment
-    $activities[] = [
-        'date' => $activityDate,
-        'start_time' => sprintf('%02d:%02d', intdiv($startMinutes, 60), $startMinutes % 60),
-        'end_time' => sprintf('%02d:%02d', intdiv($previousMinutes, 60), $previousMinutes % 60),
-        'activity_type' => $currentType,
-        'duration' => $previousMinutes - $startMinutes,
-        'start_min' => $startMinutes,
-        'end_min' => $previousMinutes
-    ];
 }
 
-// Correct activity labels and colors
+// Activity labels and colors
 $activityLabels = [
     0 => 'Rest',
     1 => 'Availability',
@@ -129,58 +140,67 @@ require_once __DIR__ . '/inc/sidebar.php';
     <div class="content">
         <div class="container-fluid">
 
-            <!-- Day selector -->
-            <?php if (!empty($dates)): ?>
-                <form method="get" class="mb-3">
-                    <label for="date">Select Day:</label>
-                    <select name="date" id="date" onchange="this.form.submit()">
-                        <option value="">-- All Days --</option>
-                        <?php foreach ($dates as $dateOption): ?>
-                            <option value="<?= htmlspecialchars($dateOption) ?>" <?= $selectedDate === $dateOption ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($dateOption) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </form>
-            <?php endif; ?>
-
-            <!-- Timeline Graph -->
-            <?php if ($selectedDate && !empty($activities)): ?>
-            <div class="card card-info mb-4">
-                <div class="card-header">Timeline for <?= htmlspecialchars($selectedDate) ?></div>
-                <div class="card-body">
-                    <canvas id="activityTimeline" height="50"></canvas>
+            <?php if ($dbError): ?>
+                <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    <?= $dbError ?>
                 </div>
-            </div>
             <?php endif; ?>
 
-            <?php if (empty($activities)): ?>
-                <div class="alert alert-info">No activities found.</div>
-            <?php else: ?>
-                <table class="table table-bordered table-striped">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Start</th>
-                            <th>End</th>
-                            <th>DB Value</th>
-                            <th>Activity Type</th>
-                            <th>Duration (min)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($activities as $act): ?>
+            <?php if (!$dbError): ?>
+                <!-- Day selector -->
+                <?php if (!empty($dates)): ?>
+                    <form method="get" class="mb-3">
+                        <label for="date">Select Day:</label>
+                        <select name="date" id="date" onchange="this.form.submit()">
+                            <option value="">-- All Days --</option>
+                            <?php foreach ($dates as $dateOption): ?>
+                                <option value="<?= htmlspecialchars($dateOption) ?>" <?= $selectedDate === $dateOption ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($dateOption) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </form>
+                <?php endif; ?>
+
+                <!-- Timeline Graph -->
+                <?php if ($selectedDate && !empty($activities)): ?>
+                <div class="card card-info mb-4">
+                    <div class="card-header">Timeline for <?= htmlspecialchars($selectedDate) ?></div>
+                    <div class="card-body">
+                        <canvas id="activityTimeline" height="50"></canvas>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php if (empty($activities)): ?>
+                    <div class="alert alert-info">No activities found.</div>
+                <?php else: ?>
+                    <table class="table table-bordered table-striped">
+                        <thead>
                             <tr>
-                                <td><?= date('d-m-Y', strtotime($act['date'])) ?></td>
-                                <td><?= htmlspecialchars($act['start_time']) ?></td>
-                                <td><?= htmlspecialchars($act['end_time']) ?></td>
-                                <td><?= htmlspecialchars($act['activity_type']) ?></td>
-                                <td><?= htmlspecialchars($activityLabels[$act['activity_type']] ?? 'Unknown') ?></td>
-                                <td><?= htmlspecialchars($act['duration']) ?></td>
+                                <th>Date</th>
+                                <th>Start</th>
+                                <th>End</th>
+                                <th>DB Value</th>
+                                <th>Activity Type</th>
+                                <th>Duration (min)</th>
                             </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($activities as $act): ?>
+                                <tr>
+                                    <td><?= date('d-m-Y', strtotime($act['date'])) ?></td>
+                                    <td><?= htmlspecialchars($act['start_time']) ?></td>
+                                    <td><?= htmlspecialchars($act['end_time']) ?></td>
+                                    <td><?= htmlspecialchars($act['activity_type']) ?></td>
+                                    <td><?= htmlspecialchars($activityLabels[$act['activity_type']] ?? 'Unknown') ?></td>
+                                    <td><?= htmlspecialchars($act['duration']) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php endif; ?>
             <?php endif; ?>
 
         </div>
@@ -214,7 +234,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const activityTypes = {0: [], 1: [], 2: [], 3: []};
     activitiesData.forEach(a => activityTypes[a.type].push({x: [a.start, a.end], y: ''}));
 
-    const activityLabels = {0: 'Other Work', 1: 'Drive', 2: 'Rest', 3: 'Work'};
+    const activityLabels = {0: 'Rest', 1: 'Availability', 2: 'Work', 3: 'Drive'};
     const activityColors = {0: '#ff9800', 1: '#0000ff', 2: '#ff0000', 3: '#add8e6'};
 
     const datasets = [];
